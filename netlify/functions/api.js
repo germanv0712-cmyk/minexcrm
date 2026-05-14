@@ -1,35 +1,44 @@
-// Netlify Function wrapper for the Express backend using serverless-http.
-// Deployed at: /.netlify/functions/api → rewritten to /api/* via netlify.toml
+// Netlify Function — MinexCRM Express API wrapper
+// Requires DATABASE_URL env var for a hosted PostgreSQL (e.g. Neon, Supabase, Railway).
+// Without it the API returns 503 gracefully; the frontend operates in demo mode.
 const serverless = require('serverless-http');
-
-// Patch express app to work in serverless (no prisma $connect needed at cold start)
 process.env.NODE_ENV = process.env.NODE_ENV || 'production';
 
-let handler;
+let handler = null;
+let initError = null;
 
-async function getHandler() {
+async function buildHandler() {
   if (handler) return handler;
+  if (initError) throw initError;
 
-  // Lazy-require so Prisma client only initialises on first invocation
-  const express    = require('express');
-  const cors       = require('cors');
-  const helmet     = require('helmet');
+  if (!process.env.DATABASE_URL) {
+    initError = Object.assign(
+      new Error('DATABASE_URL is not configured. Set it in Netlify → Site configuration → Environment variables.'),
+      { status: 503 }
+    );
+    throw initError;
+  }
+
+  const express = require('express');
+  const cors    = require('cors');
+  const helmet  = require('helmet');
 
   const app = express();
 
   app.use(helmet({ crossOriginResourcePolicy: { policy: 'cross-origin' } }));
   app.use(cors({
-    origin:      process.env.CORS_ORIGIN?.split(',') || '*',
-    credentials: true,
-    methods:     ['GET','POST','PATCH','PUT','DELETE','OPTIONS'],
+    origin:         process.env.CORS_ORIGIN?.split(',') || '*',
+    credentials:    true,
+    methods:        ['GET','POST','PATCH','PUT','DELETE','OPTIONS'],
     allowedHeaders: ['Content-Type','Authorization'],
   }));
 
-  // WhatsApp webhook needs raw body → mount first
   app.use('/webhooks', require('../../backend/src/routes/webhooks'));
   app.use(express.json({ limit: '2mb' }));
 
-  app.get('/health', (_req, res) => res.json({ status: 'ok', ts: new Date() }));
+  app.get('/health', (_req, res) =>
+    res.json({ status: 'ok', db: 'connected', ts: new Date() })
+  );
 
   app.use('/auth',      require('../../backend/src/routes/auth'));
   app.use('/dashboard', require('../../backend/src/routes/dashboard'));
@@ -44,6 +53,7 @@ async function getHandler() {
   app.use('/files',     require('../../backend/src/routes/files'));
 
   app.use((_req, res) => res.status(404).json({ error: 'Not found' }));
+  // eslint-disable-next-line no-unused-vars
   app.use((err, _req, res, _next) => {
     const status = err.status || 500;
     if (status >= 500) console.error('[ERROR]', err);
@@ -55,8 +65,18 @@ async function getHandler() {
 }
 
 exports.handler = async (event, context) => {
-  // Strip the /.netlify/functions/api prefix so routes match /auth/login, etc.
+  // Strip /.netlify/functions/api prefix → routes resolve as /auth/login etc.
   event.path = event.path.replace(/^\/.netlify\/functions\/api/, '') || '/';
-  const fn = await getHandler();
-  return fn(event, context);
+
+  try {
+    const fn = await buildHandler();
+    return fn(event, context);
+  } catch (err) {
+    const status = err.status || 500;
+    return {
+      statusCode: status,
+      headers:    { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' },
+      body:       JSON.stringify({ error: err.message }),
+    };
+  }
 };
