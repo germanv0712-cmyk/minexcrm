@@ -49,8 +49,24 @@ const PageHSE = ({ sub }) => {
 const IncidentsTab = () => {
   const { t, lang } = useT();
   const [open, setOpen] = React.useState(false);
+  const [eventType, setEventType] = React.useState('cuasi');
+  const allProjects = Store.useProjects();
+  const incidents = Store.useIncidents();
   const toast = UI.useToast();
+  const emptyForm = { projectId: 'p1', datetime: '', location: '11.4523° N · -72.9510° W', desc: '', actions: '', investigatorId: 'u2' };
+  const [form, setForm] = React.useState(emptyForm);
+  const set = (k) => (e) => setForm((f) => ({ ...f, [k]: e.target.value }));
   React.useEffect(() => { window._openIncident = () => setOpen(true); return () => { delete window._openIncident; }; }, []);
+  React.useEffect(() => { if (open) { setEventType('cuasi'); setForm({ ...emptyForm, projectId: allProjects[0]?.id || 'p1' }); } }, [open]);
+
+  const onSubmit = () => {
+    Store.addIncident({ id: 'inc' + Date.now(), type: eventType, projectId: form.projectId, date: form.datetime ? new Date(form.datetime).toISOString() : new Date().toISOString(), location: form.location, desc: form.desc || 'Incidente en campo', actions: form.actions || 'Pendiente investigación', investigatorId: form.investigatorId, status: 'open' });
+    toast.push({ kind: 'warn', title: 'Incidente reportado', desc: 'Notificación enviada a Ana Vélez (HSE) y al supervisor del proyecto.' });
+    setOpen(false);
+  };
+
+  const typeStyles = { cuasi: 'border-sky-500 bg-sky-50 text-sky-700', leve: 'border-warning-500 bg-warning-50 text-warning-700', grave: 'border-danger-500 bg-danger-50 text-danger-700', fatal: 'border-danger-700 bg-danger-100 text-danger-900' };
+  const inactiveStyle = 'border-neutral-200 hover:bg-neutral-50 text-neutral-700';
 
   return (
     <>
@@ -58,42 +74,50 @@ const IncidentsTab = () => {
         <UI.Table columns={[
           { label: 'Fecha', mono: true, render: (i) => <span className="font-mono text-xs">{MX.formatDate(i.date, lang)}</span> },
           { label: 'Tipo', render: (i) => <UI.Badge kind={{ leve: 'warn', grave: 'danger', cuasi: 'info', fatal: 'danger' }[i.type] || 'neutral'} dot>{({ leve: 'Leve', grave: 'Grave', cuasi: 'Cuasi-accidente', fatal: 'Fatal' })[i.type]}</UI.Badge> },
-          { label: 'Proyecto', render: (i) => MX.projects.find((p) => p.id === i.projectId)?.name },
+          { label: 'Proyecto', render: (i) => (allProjects.find((p) => p.id === i.projectId) || MX.projects.find((p) => p.id === i.projectId))?.name || i.projectId },
           { label: 'Descripción', render: (i) => <span className="text-sm text-neutral-700 line-clamp-2">{i.desc}</span> },
           { label: 'Estado', render: (i) => UI.statusBadge(i.status, t) },
           { label: 'Acciones correctivas', render: (i) => <span className="text-xs text-neutral-700 line-clamp-2">{i.actions}</span> },
-        ]} rows={MX.incidents}/>
+        ]} rows={incidents}/>
       </UI.Card>
 
       <UI.Drawer open={open} onClose={() => setOpen(false)} title="Reportar incidente HSE" subtitle="Se notificará automáticamente a supervisor y HSE" width="max-w-2xl"
-        footer={<div className="flex justify-end gap-2"><UI.Button kind="ghost" onClick={() => setOpen(false)}>Cancelar</UI.Button><UI.Button kind="danger" icon={Icon.ShieldAlert} onClick={() => { setOpen(false); toast.push({ kind: 'warn', title: 'Incidente reportado', desc: 'Notificación enviada a Ana Vélez (HSE) y al supervisor del proyecto.' }); }}>Reportar y notificar</UI.Button></div>}>
+        footer={<div className="flex justify-end gap-2"><UI.Button kind="ghost" onClick={() => setOpen(false)}>Cancelar</UI.Button><UI.Button kind="danger" icon={Icon.ShieldAlert} onClick={onSubmit}>Reportar y notificar</UI.Button></div>}>
         <div className="space-y-5">
           <UI.Field label="Tipo de evento" required>
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
               {[
-                { v: 'cuasi', l: 'Cuasi-accidente', c: 'sky' },
-                { v: 'leve',  l: 'Leve', c: 'amber' },
-                { v: 'grave', l: 'Grave', c: 'red' },
-                { v: 'fatal', l: 'Fatal', c: 'red' },
+                { v: 'cuasi', l: 'Cuasi-accidente' },
+                { v: 'leve',  l: 'Leve' },
+                { v: 'grave', l: 'Grave' },
+                { v: 'fatal', l: 'Fatal' },
               ].map((x) => (
-                <button key={x.v} className={`h-12 rounded-lg border text-sm font-medium ${x.v === 'cuasi' ? 'border-sky-500 bg-sky-50 text-sky-700' : 'border-neutral-200 hover:bg-neutral-50'}`}>{x.l}</button>
+                <button key={x.v} type="button" onClick={() => setEventType(x.v)}
+                  className={`h-12 rounded-lg border text-sm font-medium transition-colors ${eventType === x.v ? typeStyles[x.v] : inactiveStyle}`}>{x.l}</button>
               ))}
             </div>
           </UI.Field>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <UI.Field label="Proyecto" required><UI.Select>{MX.projects.map((p) => <option key={p.id}>{p.name}</option>)}</UI.Select></UI.Field>
-            <UI.Field label="Fecha y hora" required><UI.Input type="datetime-local" defaultValue="2026-05-14T08:30"/></UI.Field>
-            <UI.Field label="Personas involucradas"><UI.Select multiple className="!h-24">{MX.people.map((p) => <option key={p.id}>{p.name}</option>)}</UI.Select></UI.Field>
-            <UI.Field label="Lugar (GPS)">
+            <UI.Field label="Proyecto" required>
+              <UI.Select value={form.projectId} onChange={set('projectId')}>
+                {allProjects.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
+              </UI.Select>
+            </UI.Field>
+            <UI.Field label="Fecha y hora" required><UI.Input type="datetime-local" value={form.datetime} onChange={set('datetime')}/></UI.Field>
+            <UI.Field label="Lugar (GPS)" className="sm:col-span-2">
               <div className="flex gap-2">
-                <UI.Input defaultValue="11.4523° N · -72.9510° W" className="font-mono"/>
+                <UI.Input value={form.location} onChange={set('location')} className="font-mono"/>
                 <UI.Button kind="secondary" icon={Icon.MapPin}>GPS</UI.Button>
               </div>
             </UI.Field>
           </div>
-          <UI.Field label="Descripción del evento" required><UI.Textarea rows={4} placeholder="¿Qué pasó? Lugar exacto, cómo ocurrió, condiciones del entorno…"/></UI.Field>
-          <UI.Field label="Acciones inmediatas tomadas" required><UI.Textarea rows={2} placeholder="Aislamiento del área, atención médica, comunicación…"/></UI.Field>
-          <UI.Field label="Responsable de investigación" required><UI.Select defaultValue="u2">{MX.people.map((p) => <option key={p.id} value={p.id}>{p.name} — {p.role}</option>)}</UI.Select></UI.Field>
+          <UI.Field label="Descripción del evento" required><UI.Textarea value={form.desc} onChange={set('desc')} rows={4} placeholder="¿Qué pasó? Lugar exacto, cómo ocurrió, condiciones del entorno…"/></UI.Field>
+          <UI.Field label="Acciones inmediatas tomadas" required><UI.Textarea value={form.actions} onChange={set('actions')} rows={2} placeholder="Aislamiento del área, atención médica, comunicación…"/></UI.Field>
+          <UI.Field label="Responsable de investigación" required>
+            <UI.Select value={form.investigatorId} onChange={set('investigatorId')}>
+              {MX.people.map((p) => <option key={p.id} value={p.id}>{p.name} — {p.role}</option>)}
+            </UI.Select>
+          </UI.Field>
           <UI.Field label="Evidencias fotográficas"><Dropzone label="Sube fotos del lugar del incidente"/></UI.Field>
         </div>
       </UI.Drawer>

@@ -4,7 +4,9 @@ const PageDrilling = () => {
   const { go } = Layout.useRouter();
   const [drawerOpen, setDrawerOpen] = React.useState(false);
   const [filters, setFilters] = React.useState({ status: 'all', project: 'all', q: '' });
-  const rows = MX.wells.filter((w) => {
+  const wells = Store.useWells();
+  const allProjects = Store.useProjects();
+  const rows = wells.filter((w) => {
     if (filters.status !== 'all' && w.status !== filters.status) return false;
     if (filters.project !== 'all' && w.projectId !== filters.project) return false;
     if (filters.q && !w.code.toLowerCase().includes(filters.q.toLowerCase())) return false;
@@ -41,7 +43,7 @@ const PageDrilling = () => {
           <UI.Input icon={Icon.Search} placeholder="Buscar código de pozo…" value={filters.q} onChange={(e) => setFilters({ ...filters, q: e.target.value })} className="!w-56"/>
           <UI.Select value={filters.project} onChange={(e) => setFilters({ ...filters, project: e.target.value })} className="!w-56">
             <option value="all">Todos los proyectos</option>
-            {MX.projects.map((p) => <option key={p.id} value={p.id}>{p.code} — {p.name}</option>)}
+            {allProjects.map((p) => <option key={p.id} value={p.id}>{p.code} — {p.name}</option>)}
           </UI.Select>
           <UI.Select value={filters.status} onChange={(e) => setFilters({ ...filters, status: e.target.value })} className="!w-40">
             <option value="all">Todos los estados</option>
@@ -58,7 +60,7 @@ const PageDrilling = () => {
         <UI.Table
           columns={[
             { label: t('well_code'), render: (w) => <span className="font-mono text-primary-700 font-semibold">{w.code}</span> },
-            { label: t('project'), render: (w) => { const p = MX.projects.find((x) => x.id === w.projectId); return <div><div className="text-sm">{p.name}</div><div className="text-[11px] text-neutral-500 font-mono">{p.code}</div></div>; } },
+            { label: t('project'), render: (w) => { const p = allProjects.find((x) => x.id === w.projectId) || MX.projects.find((x) => x.id === w.projectId) || { name: w.projectId, code: '—' }; return <div><div className="text-sm">{p.name}</div><div className="text-[11px] text-neutral-500 font-mono">{p.code}</div></div>; } },
             { label: t('coords_utm'), render: (w) => <span className="font-mono text-[12px] text-neutral-700">E {MX.formatNum(w.utm.e)} · N {MX.formatNum(w.utm.n)}</span> },
             { label: t('depth'), render: (w) => <div className="min-w-[140px]"><div className="flex items-center justify-between text-xs"><span className="font-mono font-semibold">{w.depthCur.toFixed(1)} / {w.depthTarget} m</span><span className="text-neutral-500">{Math.round((w.depthCur / w.depthTarget) * 100)}%</span></div><UI.Progress value={(w.depthCur / w.depthTarget) * 100} size="sm" className="mt-1"/></div> },
             { label: t('bit'), render: (w) => <span className="text-xs text-neutral-700">{w.bit}</span> },
@@ -291,52 +293,99 @@ const EvidenceGallery = () => {
 // ============ New well drawer ============
 const NewWellDrawer = ({ open, onClose }) => {
   const toast = UI.useToast();
+  const allProjects = Store.useProjects();
+  const nextCode = 'DDH-2026-0' + (80 + Store.wells.length + 1);
+  const empty = { projectId: allProjects[0]?.id || 'p1', code: nextCode, utmE: '1093720', utmN: '1727980', utmZ: '246', azimuth: '270', dip: '-65', depthTarget: '320', type: 'Diamantina', startDate: '2026-05-20', rigId: '', opId: '', geoId: '' };
+  const [form, setForm] = React.useState(empty);
+  React.useEffect(() => { if (open) setForm({ ...empty, projectId: allProjects[0]?.id || 'p1', code: 'DDH-2026-0' + (80 + Store.wells.length + 1) }); }, [open]);
+  const set = (k) => (e) => setForm((f) => ({ ...f, [k]: e.target.value }));
+
+  const onCreate = () => {
+    Store.addWell({
+      id: 'w' + Date.now(),
+      code: form.code,
+      projectId: form.projectId,
+      utm: { e: Number(form.utmE), n: Number(form.utmN), z: Number(form.utmZ) },
+      azimuth: Number(form.azimuth),
+      dip: Number(form.dip),
+      depthTarget: Number(form.depthTarget),
+      depthCur: 0,
+      type: form.type,
+      bit: 'HQ · 96mm',
+      status: 'active',
+      opId: form.opId || MX.people[0]?.id,
+      rigId: form.rigId || MX.equipment[0]?.id,
+      lastUpdate: new Date().toISOString(),
+    });
+    toast.push({ kind: 'success', title: 'Pozo creado', desc: form.code + ' listo para registrar avances.' });
+    onClose();
+  };
+
+  const rigs = MX.equipment.filter((e) => e.type === 'Perforadora');
+  const ops = MX.people.filter((p) => p.role.includes('perforación') || p.role.includes('operador'));
+  const geos = MX.people.filter((p) => p.role.includes('Geól'));
+
   return (
     <UI.Drawer open={open} onClose={onClose} title="Nuevo registro de perforación" subtitle="Estado: borrador" width="max-w-2xl"
       footer={<div className="flex justify-between">
-        <UI.Button kind="ghost" onClick={onClose}>{'Cancelar'}</UI.Button>
+        <UI.Button kind="ghost" onClick={onClose}>Cancelar</UI.Button>
         <div className="flex gap-2">
-          <UI.Button kind="secondary" icon={Icon.Save} onClick={() => { onClose(); toast.push({ kind: 'info', title: 'Borrador guardado' }); }}>Guardar borrador</UI.Button>
-          <UI.Button kind="primary" icon={Icon.Check} onClick={() => { onClose(); toast.push({ kind: 'success', title: 'Pozo creado', desc: 'DDH-2026-088 listo para registrar avances.' }); }}>Crear pozo</UI.Button>
+          <UI.Button kind="primary" icon={Icon.Check} onClick={onCreate}>Crear pozo</UI.Button>
         </div>
       </div>}>
       <div className="space-y-6">
         <Section title="1. Identificación" icon={Icon.Hash}>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <UI.Field label="Proyecto" required><UI.Select defaultValue="p1">{MX.projects.map((p) => <option key={p.id} value={p.id}>{p.code} — {p.name}</option>)}</UI.Select></UI.Field>
-            <UI.Field label="Código del pozo" required><UI.Input defaultValue="DDH-2026-088"/></UI.Field>
+            <UI.Field label="Proyecto" required>
+              <UI.Select value={form.projectId} onChange={set('projectId')}>
+                {allProjects.map((p) => <option key={p.id} value={p.id}>{p.code} — {p.name}</option>)}
+              </UI.Select>
+            </UI.Field>
+            <UI.Field label="Código del pozo" required><UI.Input value={form.code} onChange={set('code')}/></UI.Field>
             <div className="sm:col-span-2">
               <div className="flex items-end gap-2">
-                <UI.Field label="UTM Este" required className="flex-1"><UI.Input className="font-mono" defaultValue="1093720"/></UI.Field>
-                <UI.Field label="UTM Norte" required className="flex-1"><UI.Input className="font-mono" defaultValue="1727980"/></UI.Field>
-                <UI.Field label="Cota Z (m.s.n.m)" required className="flex-1"><UI.Input className="font-mono" defaultValue="246"/></UI.Field>
-                <UI.Button kind="secondary" icon={Icon.MapPin} className="!shrink-0">Capturar GPS</UI.Button>
+                <UI.Field label="UTM Este" required className="flex-1"><UI.Input className="font-mono" value={form.utmE} onChange={set('utmE')}/></UI.Field>
+                <UI.Field label="UTM Norte" required className="flex-1"><UI.Input className="font-mono" value={form.utmN} onChange={set('utmN')}/></UI.Field>
+                <UI.Field label="Cota Z" required className="flex-1"><UI.Input className="font-mono" value={form.utmZ} onChange={set('utmZ')}/></UI.Field>
+                <UI.Button kind="secondary" icon={Icon.MapPin} className="!shrink-0">GPS</UI.Button>
               </div>
             </div>
-            <UI.Field label="Azimut (°)" required><UI.Input className="font-mono" defaultValue="270"/></UI.Field>
-            <UI.Field label="Inclinación (°)" required><UI.Input className="font-mono" defaultValue="-65"/></UI.Field>
+            <UI.Field label="Azimut (°)" required><UI.Input className="font-mono" value={form.azimuth} onChange={set('azimuth')}/></UI.Field>
+            <UI.Field label="Inclinación (°)" required><UI.Input className="font-mono" value={form.dip} onChange={set('dip')}/></UI.Field>
           </div>
         </Section>
 
         <Section title="2. Planificación" icon={Icon.Compass}>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <UI.Field label="Profundidad objetivo (m)" required><UI.Input className="font-mono" defaultValue="320"/></UI.Field>
-            <UI.Field label="Tipo de perforación" required><UI.Select><option>Diamantina</option><option>Aire reverso (RC)</option><option>Sónica</option></UI.Select></UI.Field>
-            <UI.Field label="Fecha de inicio prevista" required><UI.Input type="date" defaultValue="2026-05-20"/></UI.Field>
-            <UI.Field label="Duración estimada (días)"><UI.Input className="font-mono" defaultValue="42"/></UI.Field>
+            <UI.Field label="Profundidad objetivo (m)" required><UI.Input className="font-mono" value={form.depthTarget} onChange={set('depthTarget')}/></UI.Field>
+            <UI.Field label="Tipo de perforación" required>
+              <UI.Select value={form.type} onChange={set('type')}>
+                <option>Diamantina</option><option>Aire reverso (RC)</option><option>Sónica</option>
+              </UI.Select>
+            </UI.Field>
+            <UI.Field label="Fecha de inicio prevista" required><UI.Input type="date" value={form.startDate} onChange={set('startDate')}/></UI.Field>
           </div>
         </Section>
 
         <Section title="3. Asignación" icon={Icon.Users}>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <UI.Field label="Equipo de perforación" required><UI.Select>{MX.equipment.filter((e) => e.type === 'Perforadora').map((e) => <option key={e.id}>{e.code} — {e.brand} {e.model}</option>)}</UI.Select></UI.Field>
-            <UI.Field label="Operador responsable" required><UI.Select>{MX.people.filter((p) => p.role.includes('perforación')).map((p) => <option key={p.id}>{p.name}</option>)}</UI.Select></UI.Field>
-            <UI.Field label="Geólogo a cargo" required><UI.Select>{MX.people.filter((p) => p.role.includes('Geól')).map((p) => <option key={p.id}>{p.name}</option>)}</UI.Select></UI.Field>
-            <UI.Field label="Turnos">
-              <div className="flex gap-2">
-                <UI.Checkbox label="Día" checked/>
-                <UI.Checkbox label="Noche" checked/>
-              </div>
+            <UI.Field label="Equipo de perforación" required>
+              <UI.Select value={form.rigId} onChange={set('rigId')}>
+                <option value="">Seleccionar equipo…</option>
+                {rigs.map((e) => <option key={e.id} value={e.id}>{e.code} — {e.brand} {e.model}</option>)}
+              </UI.Select>
+            </UI.Field>
+            <UI.Field label="Operador responsable" required>
+              <UI.Select value={form.opId} onChange={set('opId')}>
+                <option value="">Seleccionar operador…</option>
+                {MX.people.map((p) => <option key={p.id} value={p.id}>{p.name} — {p.role}</option>)}
+              </UI.Select>
+            </UI.Field>
+            <UI.Field label="Geólogo a cargo" required>
+              <UI.Select value={form.geoId} onChange={set('geoId')}>
+                <option value="">Seleccionar geólogo…</option>
+                {MX.people.filter((p) => p.role.toLowerCase().includes('geól') || p.role.toLowerCase().includes('geo')).map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
+              </UI.Select>
             </UI.Field>
           </div>
         </Section>

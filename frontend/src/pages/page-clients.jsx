@@ -2,6 +2,11 @@
 const PageClients = () => {
   const { t, lang } = useT();
   const { go } = Layout.useRouter();
+  const [newOpen, setNewOpen] = React.useState(false);
+  const clients = Store.useClients();
+  const totalLTV = clients.reduce((a, c) => a + (c.ltv || 0), 0);
+  const totalActive = clients.reduce((a, c) => a + (c.activeProjects || 0), 0);
+
   return (
     <>
       <UI.SectionHeader
@@ -11,22 +16,22 @@ const PageClients = () => {
         actions={
           <>
             <UI.Button kind="secondary" size="sm" icon={Icon.Download}>{t('export')}</UI.Button>
-            <UI.Button kind="primary" icon={Icon.Plus}>Nuevo cliente</UI.Button>
+            <UI.Button kind="primary" icon={Icon.Plus} onClick={() => setNewOpen(true)}>Nuevo cliente</UI.Button>
           </>
         }/>
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-4">
         <UI.Card padding>
           <div className="text-xs text-neutral-600">Clientes activos</div>
-          <div className="font-display font-bold text-2xl mt-1">{MX.clients.length}</div>
+          <div className="font-display font-bold text-2xl mt-1">{clients.length}</div>
         </UI.Card>
         <UI.Card padding>
           <div className="text-xs text-neutral-600">LTV total (COP)</div>
-          <div className="font-display font-bold text-2xl mt-1 font-mono">${(MX.clients.reduce((a, c) => a + c.ltv, 0) / 1e9).toFixed(1)}B</div>
+          <div className="font-display font-bold text-2xl mt-1 font-mono">${(totalLTV / 1e9).toFixed(1)}B</div>
         </UI.Card>
         <UI.Card padding>
           <div className="text-xs text-neutral-600">Proyectos activos</div>
-          <div className="font-display font-bold text-2xl mt-1">{MX.clients.reduce((a, c) => a + c.activeProjects, 0)}</div>
+          <div className="font-display font-bold text-2xl mt-1">{totalActive}</div>
         </UI.Card>
         <UI.Card padding>
           <div className="text-xs text-neutral-600">NPS comercial</div>
@@ -39,7 +44,7 @@ const PageClients = () => {
           columns={[
             { label: 'Cliente', render: (c) => (
               <div className="inline-flex items-center gap-3">
-                <span className="h-10 w-10 rounded-lg text-white font-bold inline-flex items-center justify-center" style={{ backgroundColor: c.color }}>{c.logo}</span>
+                <span className="h-10 w-10 rounded-lg text-white font-bold inline-flex items-center justify-center" style={{ backgroundColor: c.color || '#2563EB' }}>{c.logo || c.name?.[0]}</span>
                 <div>
                   <div className="font-medium text-neutral-900">{c.name}</div>
                   <div className="text-[11px] text-neutral-500 font-mono">NIT {c.nit}</div>
@@ -53,26 +58,102 @@ const PageClients = () => {
               </div>
             )},
             { label: 'Región', render: (c) => <span className="inline-flex items-center gap-1 text-sm text-neutral-700"><Icon.MapPin size={12} className="text-neutral-400"/>{c.region}</span> },
-            { label: 'Proyectos', right: true, render: (c) => <span className="font-mono font-semibold">{c.activeProjects}</span> },
-            { label: 'Tier', render: (c) => <UI.Badge kind={c.tier === 'A' ? 'success' : c.tier === 'B' ? 'info' : 'neutral'} dot>{c.tier}</UI.Badge> },
-            { label: 'LTV', right: true, render: (c) => <span className="font-mono font-semibold">${(c.ltv / 1e9).toFixed(2)}B</span> },
-            { label: 'Próx. reunión', render: (c) => <span className="text-xs font-mono text-neutral-700">{MX.formatDate(c.nextMeeting, lang)}</span> },
+            { label: 'Proyectos', right: true, render: (c) => <span className="font-mono font-semibold">{c.activeProjects || 0}</span> },
+            { label: 'Tier', render: (c) => <UI.Badge kind={c.tier === 'A' ? 'success' : c.tier === 'B' ? 'info' : 'neutral'} dot>{c.tier || 'C'}</UI.Badge> },
+            { label: 'LTV', right: true, render: (c) => <span className="font-mono font-semibold">${((c.ltv || 0) / 1e9).toFixed(2)}B</span> },
+            { label: 'Próx. reunión', render: (c) => <span className="text-xs font-mono text-neutral-700">{c.nextMeeting ? MX.formatDate(c.nextMeeting, lang) : '—'}</span> },
             { label: '', right: true, render: () => <UI.IconButton icon={Icon.MoreHorizontal}/> },
           ]}
-          rows={MX.clients}
+          rows={clients}
           onRowClick={(c) => go('/clientes/' + c.id)}/>
       </UI.Card>
+
+      <NewClientDrawer open={newOpen} onClose={() => setNewOpen(false)}/>
     </>
+  );
+};
+
+const TIER_COLORS = { A: '#10B981', B: '#0EA5E9', C: '#94A3B8' };
+
+const NewClientDrawer = ({ open, onClose }) => {
+  const toast = UI.useToast();
+  const empty = { name: '', nit: '', region: 'Cesar', contact: '', email: '', phone: '', tier: 'B' };
+  const [form, setForm] = React.useState(empty);
+  React.useEffect(() => { if (open) setForm(empty); }, [open]);
+  const set = (k) => (e) => setForm((f) => ({ ...f, [k]: e.target.value }));
+
+  const onSubmit = () => {
+    if (!form.name.trim()) { toast.push({ kind: 'danger', title: 'El nombre es requerido' }); return; }
+    Store.addClient({
+      id: 'cl' + Date.now(),
+      name: form.name.trim(),
+      nit: form.nit,
+      region: form.region,
+      contact: form.contact,
+      email: form.email,
+      phone: form.phone,
+      tier: form.tier,
+      ltv: 0,
+      activeProjects: 0,
+      color: TIER_COLORS[form.tier] || '#2563EB',
+      logo: form.name.trim()[0]?.toUpperCase() || '?',
+      nextMeeting: '',
+    });
+    toast.push({ kind: 'success', title: 'Cliente creado', desc: form.name });
+    onClose();
+  };
+
+  return (
+    <UI.Drawer open={open} onClose={onClose} title="Nuevo cliente" subtitle="Registrar empresa minera u operadora" width="max-w-xl"
+      footer={<div className="flex justify-end gap-2"><UI.Button kind="ghost" onClick={onClose}>Cancelar</UI.Button><UI.Button kind="primary" icon={Icon.Check} onClick={onSubmit}>Crear cliente</UI.Button></div>}>
+      <div className="space-y-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <UI.Field label="Razón social" required className="sm:col-span-2">
+            <UI.Input value={form.name} onChange={set('name')} placeholder="Drummond Ltd."/>
+          </UI.Field>
+          <UI.Field label="NIT">
+            <UI.Input value={form.nit} onChange={set('nit')} placeholder="800.123.456-7" className="font-mono"/>
+          </UI.Field>
+          <UI.Field label="Región principal">
+            <UI.Select value={form.region} onChange={set('region')}>
+              {['Cesar', 'La Guajira', 'Antioquia', 'Boyacá', 'Caldas', 'Córdoba', 'Bolívar', 'Cundinamarca'].map((r) => <option key={r}>{r}</option>)}
+            </UI.Select>
+          </UI.Field>
+          <UI.Field label="Segmento (Tier)">
+            <UI.Select value={form.tier} onChange={set('tier')}>
+              <option value="A">Tier A — Cliente estratégico</option>
+              <option value="B">Tier B — Cliente regular</option>
+              <option value="C">Tier C — Cliente potencial</option>
+            </UI.Select>
+          </UI.Field>
+        </div>
+        <div className="pt-1 text-xs font-semibold text-neutral-500 uppercase tracking-wide">Contacto principal</div>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <UI.Field label="Nombre del contacto">
+            <UI.Input value={form.contact} onChange={set('contact')} placeholder="Gerente de Operaciones"/>
+          </UI.Field>
+          <UI.Field label="Correo corporativo">
+            <UI.Input type="email" value={form.email} onChange={set('email')} placeholder="contacto@empresa.com"/>
+          </UI.Field>
+          <UI.Field label="Teléfono">
+            <UI.Input value={form.phone} onChange={set('phone')} placeholder="+57 5 350 5500" className="font-mono"/>
+          </UI.Field>
+        </div>
+      </div>
+    </UI.Drawer>
   );
 };
 
 const PageClientDetail = ({ id }) => {
   const { t, lang } = useT();
   const { go } = Layout.useRouter();
-  const c = MX.clients.find((x) => x.id === id);
+  const allClients = Store.useClients();
+  const allProjects = Store.useProjects();
+  const allOpps = Store.useOpportunities();
+  const c = allClients.find((x) => x.id === id);
   if (!c) return <UI.EmptyState title="Cliente no encontrado" action={<UI.Button onClick={() => go('/clientes')}>Volver</UI.Button>}/>;
-  const projects = MX.projects.filter((p) => p.clientId === c.id);
-  const opps = MX.opportunities.filter((o) => o.clientId === c.id);
+  const projects = allProjects.filter((p) => p.clientId === c.id);
+  const opps = allOpps.filter((o) => o.clientId === c.id);
   const [tab, setTab] = React.useState('overview');
 
   // Interaction history

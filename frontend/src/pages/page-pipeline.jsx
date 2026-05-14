@@ -12,20 +12,21 @@ const PagePipeline = () => {
   const { go } = Layout.useRouter();
   const toast = UI.useToast();
   const [view, setView] = React.useState('kanban');
-  const [opps, setOpps] = React.useState(MX.opportunities);
+  const opps = Store.useOpportunities();
   const [drag, setDrag] = React.useState(null);
   const [openOpp, setOpenOpp] = React.useState(null);
   const [convertOpen, setConvertOpen] = React.useState(false);
   const [convertOpp, setConvertOpp] = React.useState(null);
+  const [newOppOpen, setNewOppOpen] = React.useState(false);
 
   const onDrop = (stage) => {
     if (!drag) return;
-    const o = opps.find((x) => x.id === drag);
+    const o = Store.opportunities.find((x) => x.id === drag);
     if (stage === 'close' && o && o.stage !== 'close') {
       setConvertOpp({ ...o, stage });
       setConvertOpen(true);
     } else {
-      setOpps(opps.map((x) => x.id === drag ? { ...x, stage } : x));
+      Store.moveOpportunity(drag, stage);
       toast.push({ kind: 'success', title: 'Oportunidad movida', desc: `${o.name} → ${t('stage_' + stage)}` });
     }
     setDrag(null);
@@ -51,7 +52,7 @@ const PagePipeline = () => {
                 </button>
               ))}
             </div>
-            <UI.Button kind="primary" icon={Icon.Plus}>Nueva oportunidad</UI.Button>
+            <UI.Button kind="primary" icon={Icon.Plus} onClick={() => setNewOppOpen(true)}>Nueva oportunidad</UI.Button>
           </>
         }/>
 
@@ -82,8 +83,8 @@ const PagePipeline = () => {
               <div onDragOver={(e) => e.preventDefault()} onDrop={() => onDrop(s.id)}
                 className="flex-1 bg-neutral-50 border border-t-0 border-neutral-200 rounded-b-card p-2 min-h-[360px] flex flex-col gap-2">
                 {s.items.map((o) => {
-                  const c = MX.clients.find((x) => x.id === o.clientId);
-                  const u = MX.people.find((x) => x.id === o.ownerId);
+                  const c = Store.clients.find((x) => x.id === o.clientId) || MX.clients.find((x) => x.id === o.clientId) || { name: o.clientId, color: '#94A3B8', logo: '?' };
+                  const u = MX.people.find((x) => x.id === o.ownerId) || { name: 'Equipo', color: '#94A3B8' };
                   return (
                     <div key={o.id}
                       draggable onDragStart={() => setDrag(o.id)}
@@ -121,11 +122,11 @@ const PagePipeline = () => {
         <UI.Card padding={false}>
           <UI.Table columns={[
             { label: 'Oportunidad', render: (o) => o.name },
-            { label: 'Cliente', render: (o) => MX.clients.find((c) => c.id === o.clientId)?.name },
+            { label: 'Cliente', render: (o) => (Store.clients.find((c) => c.id === o.clientId) || MX.clients.find((c) => c.id === o.clientId))?.name },
             { label: 'Etapa', render: (o) => <UI.Badge kind="primary" dot>{t('stage_' + o.stage)}</UI.Badge> },
             { label: 'Monto', right: true, render: (o) => <span className="font-mono">${MX.formatNum(o.amount)}</span> },
             { label: 'Prob.', render: (o) => <span className="font-mono">{o.prob}%</span> },
-            { label: 'Dueño', render: (o) => { const u = MX.people.find((x) => x.id === o.ownerId); return <span className="inline-flex items-center gap-2"><UI.Avatar name={u.name} color={u.color} size={22}/>{u.name}</span>; } },
+            { label: 'Dueño', render: (o) => { const u = MX.people.find((x) => x.id === o.ownerId); return u ? <span className="inline-flex items-center gap-2"><UI.Avatar name={u.name} color={u.color} size={22}/>{u.name}</span> : <span>—</span>; } },
             { label: 'Cierre', render: (o) => <span className="font-mono text-xs">{MX.formatDate(o.closeDate, lang)}</span> },
             { label: 'Próx. acción', render: (o) => <span className="text-xs">{o.next}</span> },
           ]} rows={opps} onRowClick={setOpenOpp}/>
@@ -133,15 +134,87 @@ const PagePipeline = () => {
       )}
 
       <OpportunityDrawer opp={openOpp} onClose={() => setOpenOpp(null)}/>
-      <ConvertToProjectModal open={convertOpen} opp={convertOpp} onClose={() => { setConvertOpen(false); setOpps(opps.map((x) => x.id === convertOpp.id ? { ...x, stage: 'close' } : x)); toast.push({ kind: 'success', title: '¡Oportunidad ganada!', desc: 'Se creó el proyecto PRJ-2026-036 y se asignó el equipo.' }); }}/>
+      <NewOpportunityDrawer open={newOppOpen} onClose={() => setNewOppOpen(false)}/>
+      <ConvertToProjectModal open={convertOpen} opp={convertOpp}
+        onClose={() => { setConvertOpen(false); setConvertOpp(null); }}/>
     </>
+  );
+};
+
+// ============ Nueva oportunidad ============
+const NewOpportunityDrawer = ({ open, onClose }) => {
+  const { t, lang } = useT();
+  const toast = UI.useToast();
+  const clients = Store.useClients();
+  const empty = { name: '', clientId: clients[0]?.id || 'c1', amount: '500000000', prob: '50', stage: 'prospect', closeDate: '', next: '', service: '' };
+  const [form, setForm] = React.useState(empty);
+  React.useEffect(() => { if (open) setForm(empty); }, [open]);
+  const set = (k) => (e) => setForm((f) => ({ ...f, [k]: e.target.value }));
+
+  const onSubmit = () => {
+    if (!form.name.trim()) { toast.push({ kind: 'danger', title: 'El nombre es requerido' }); return; }
+    Store.addOpportunity({
+      id: 'op' + Date.now(),
+      name: form.name.trim(),
+      clientId: form.clientId,
+      amount: Number(form.amount) || 500000000,
+      prob: Number(form.prob) || 50,
+      stage: form.stage,
+      closeDate: form.closeDate || new Date(Date.now() + 90 * 86400000).toISOString().slice(0, 10),
+      next: form.next || 'Primer contacto',
+      service: form.service,
+      ownerId: 'u1',
+      lastMove: 0,
+    });
+    toast.push({ kind: 'success', title: 'Oportunidad creada', desc: form.name });
+    onClose();
+  };
+
+  return (
+    <UI.Drawer open={open} onClose={onClose} title="Nueva oportunidad" subtitle="Agregar al pipeline comercial" width="max-w-xl"
+      footer={<div className="flex justify-end gap-2"><UI.Button kind="ghost" onClick={onClose}>Cancelar</UI.Button><UI.Button kind="primary" icon={Icon.Check} onClick={onSubmit}>Crear oportunidad</UI.Button></div>}>
+      <div className="space-y-4">
+        <UI.Field label="Nombre de la oportunidad" required>
+          <UI.Input value={form.name} onChange={set('name')} placeholder="Ej: Exploración Drummond Fase IV"/>
+        </UI.Field>
+        <UI.Field label="Cliente" required>
+          <UI.Select value={form.clientId} onChange={set('clientId')}>
+            {clients.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+          </UI.Select>
+        </UI.Field>
+        <div className="grid grid-cols-2 gap-4">
+          <UI.Field label="Monto estimado (COP)" required>
+            <UI.Input type="number" value={form.amount} onChange={set('amount')} className="font-mono"/>
+          </UI.Field>
+          <UI.Field label="Probabilidad (%)" required>
+            <UI.Input type="number" min="0" max="100" value={form.prob} onChange={set('prob')} className="font-mono"/>
+          </UI.Field>
+        </div>
+        <div className="grid grid-cols-2 gap-4">
+          <UI.Field label="Etapa inicial">
+            <UI.Select value={form.stage} onChange={set('stage')}>
+              {[{ id:'prospect', l:'Prospecto' }, { id:'qualification', l:'Calificación' }, { id:'proposal', l:'Propuesta' }, { id:'negotiation', l:'Negociación' }].map((s) => <option key={s.id} value={s.id}>{s.l}</option>)}
+            </UI.Select>
+          </UI.Field>
+          <UI.Field label="Cierre estimado">
+            <UI.Input type="date" value={form.closeDate} onChange={set('closeDate')}/>
+          </UI.Field>
+        </div>
+        <UI.Field label="Servicio principal">
+          <UI.Input value={form.service} onChange={set('service')} placeholder="Perforación diamantina, geofísica…"/>
+        </UI.Field>
+        <UI.Field label="Próxima acción">
+          <UI.Input value={form.next} onChange={set('next')} placeholder="Ej: Enviar propuesta técnica"/>
+        </UI.Field>
+      </div>
+    </UI.Drawer>
   );
 };
 
 const OpportunityDrawer = ({ opp, onClose }) => {
   const { t, lang } = useT();
   if (!opp) return null;
-  const c = MX.clients.find((x) => x.id === opp.clientId);
+  const c = Store.clients.find((x) => x.id === opp.clientId) || MX.clients.find((x) => x.id === opp.clientId) || { name: opp.clientId, nit: '—', color: '#94A3B8', logo: '?' };
   return (
     <UI.Drawer open={!!opp} onClose={onClose}
       title={opp.name}
@@ -236,12 +309,48 @@ const OpportunityDrawer = ({ opp, onClose }) => {
   );
 };
 
+// ============ Convertir a proyecto ============
 const ConvertToProjectModal = ({ open, opp, onClose }) => {
+  const { go } = Layout.useRouter();
+  const toast = UI.useToast();
+  const clients = Store.useClients();
+  const [form, setForm] = React.useState({ code: 'PRJ-2026-036', contractValue: '', ownerId: 'u1', start: '', end: '' });
+  React.useEffect(() => {
+    if (opp) setForm({ code: 'PRJ-2026-0' + (30 + Store.projects.length + 1), contractValue: opp ? String(opp.amount) : '', ownerId: 'u1', start: '', end: '' });
+  }, [opp]);
   if (!opp) return null;
-  const c = MX.clients.find((x) => x.id === opp.clientId);
+  const c = Store.clients.find((x) => x.id === opp.clientId) || MX.clients.find((x) => x.id === opp.clientId) || { name: opp.clientId };
+  const set = (k) => (e) => setForm((f) => ({ ...f, [k]: e.target.value }));
+
+  const onConvert = () => {
+    const now = new Date().toISOString().slice(0, 10);
+    Store.addProject({
+      id: 'p' + Date.now(),
+      code: form.code,
+      name: opp.name,
+      service: opp.service || 'Perforación diamantina',
+      region: c.region || 'Colombia',
+      clientId: opp.clientId,
+      contractValue: Number(form.contractValue) || opp.amount,
+      billed: 0,
+      ownerId: form.ownerId,
+      status: 'active',
+      progress: 0,
+      start: form.start || now,
+      end: form.end || new Date(Date.now() + 180 * 86400000).toISOString().slice(0, 10),
+      lat: 6.5 + Math.random() * 4,
+      lng: -76 - Math.random() * 4,
+      photo: '#2563EB',
+    });
+    Store.moveOpportunity(opp.id, 'close');
+    toast.push({ kind: 'success', title: '¡Oportunidad ganada!', desc: `Proyecto ${form.code} creado y asignado.` });
+    onClose();
+    go('/proyectos');
+  };
+
   return (
     <UI.Modal open={open} onClose={onClose} title="Convertir oportunidad en proyecto" width="max-w-lg"
-      footer={<><UI.Button kind="ghost" onClick={onClose}>Cancelar</UI.Button><UI.Button kind="success" icon={Icon.Check} onClick={onClose}>Convertir a proyecto</UI.Button></>}>
+      footer={<><UI.Button kind="ghost" onClick={onClose}>Cancelar</UI.Button><UI.Button kind="success" icon={Icon.Check} onClick={onConvert}>Convertir a proyecto</UI.Button></>}>
       <div className="rounded-lg bg-success-50 border border-success-500/20 p-3 flex items-start gap-3">
         <Icon.CircleCheck size={20} className="text-success-700 mt-0.5"/>
         <div className="text-sm">
@@ -250,13 +359,23 @@ const ConvertToProjectModal = ({ open, opp, onClose }) => {
         </div>
       </div>
       <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-4">
-        <UI.Field label="Código del proyecto" required><UI.Input defaultValue="PRJ-2026-036"/></UI.Field>
-        <UI.Field label="Valor contrato (COP)" required><UI.Input defaultValue={MX.formatNum(opp.amount)}/></UI.Field>
-        <UI.Field label="Responsable de proyecto" required className="sm:col-span-2">
-          <UI.Select defaultValue="u1">{MX.people.map((p) => <option key={p.id} value={p.id}>{p.name} — {p.role}</option>)}</UI.Select>
+        <UI.Field label="Código del proyecto" required>
+          <UI.Input value={form.code} onChange={set('code')}/>
         </UI.Field>
-        <UI.Field label="Inicio" required><UI.Input type="date" defaultValue="2026-06-15"/></UI.Field>
-        <UI.Field label="Fin estimado" required><UI.Input type="date" defaultValue="2026-12-15"/></UI.Field>
+        <UI.Field label="Valor contrato (COP)" required>
+          <UI.Input type="number" value={form.contractValue} onChange={set('contractValue')} className="font-mono"/>
+        </UI.Field>
+        <UI.Field label="Responsable de proyecto" required className="sm:col-span-2">
+          <UI.Select value={form.ownerId} onChange={set('ownerId')}>
+            {MX.people.map((p) => <option key={p.id} value={p.id}>{p.name} — {p.role}</option>)}
+          </UI.Select>
+        </UI.Field>
+        <UI.Field label="Inicio" required>
+          <UI.Input type="date" value={form.start} onChange={set('start')}/>
+        </UI.Field>
+        <UI.Field label="Fin estimado" required>
+          <UI.Input type="date" value={form.end} onChange={set('end')}/>
+        </UI.Field>
       </div>
     </UI.Modal>
   );

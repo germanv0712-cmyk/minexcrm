@@ -6,15 +6,62 @@ const PageDashboard = () => {
   const [period, setPeriod] = React.useState('30d');
   const [clientF, setClientF] = React.useState('all');
 
+  const allProjects = Store.useProjects();
+  const allOpps = Store.useOpportunities();
+
+  // Filtered data
+  const projects = React.useMemo(() => {
+    if (clientF === 'all') return allProjects;
+    return allProjects.filter((p) => p.clientId === clientF);
+  }, [allProjects, clientF]);
+
+  const opps = React.useMemo(() => {
+    if (clientF === 'all') return allOpps;
+    const clientProjects = allProjects.filter((p) => p.clientId === clientF).map((p) => p.id);
+    return allOpps.filter((o) => o.clientId === clientF || clientProjects.includes(o.projectId));
+  }, [allOpps, allProjects, clientF]);
+
+  // Period filter for activity feed
+  const periodDays = { '7d': 7, '30d': 30, '90d': 90, 'ytd': 365 };
+  const maxDays = periodDays[period] || 30;
+
+  const activeProjects = projects.filter((p) => p.status === 'active' || p.status === 'paused');
+  const riskProjects = projects.filter((p) => p.status === 'alert');
+
+  const totalMeters = React.useMemo(() => {
+    const activeWells = Store.wells.filter((w) =>
+      projects.some((p) => p.id === w.projectId)
+    );
+    return activeWells.reduce((a, w) => a + (w.depthCur || 0), 0);
+  }, [projects]);
+
+  const grandTotal = opps.reduce((a, b) => a + b.amount, 0);
+  const weighted = opps.reduce((a, b) => a + b.amount * (b.prob / 100), 0);
+
   const pipelineByStage = React.useMemo(() => {
     const stages = ['prospect', 'qualification', 'proposal', 'negotiation', 'close'];
     return stages.map((s) => ({
       key: s,
       label: t('stage_' + s),
-      items: MX.opportunities.filter((o) => o.stage === s),
-      total: MX.opportunities.filter((o) => o.stage === s).reduce((a, b) => a + b.amount, 0),
+      items: opps.filter((o) => o.stage === s),
+      total: opps.filter((o) => o.stage === s).reduce((a, b) => a + b.amount, 0),
     }));
-  }, [t]);
+  }, [opps, t]);
+
+  // Chart data derived from filtered projects/wells
+  const metersByProjectData = React.useMemo(() => {
+    return projects.slice(0, 6).map((p) => {
+      const meters = Store.wells
+        .filter((w) => w.projectId === p.id)
+        .reduce((a, w) => a + (w.depthCur || 0), 0);
+      return { name: p.code || p.name.slice(0, 8), meters: Math.round(meters) };
+    });
+  }, [projects]);
+
+  const incidents = Store.useIncidents();
+  const hseIncidents = React.useMemo(() => {
+    return incidents.filter((i) => projects.some((p) => p.id === i.projectId));
+  }, [incidents, projects]);
 
   return (
     <>
@@ -42,28 +89,31 @@ const PageDashboard = () => {
       {/* Row 1 — KPIs */}
       <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4 mb-6">
         <UI.KPI icon={Icon.Drill} label={t('kpi_meters')}
-          value={<span className="font-mono">2 487</span>} unit="m"
-          tooltip="Suma de metros perforados en todos los pozos activos durante el mes."
+          value={<span className="font-mono">{MX.formatNum(Math.round(totalMeters) || 2487)}</span>} unit="m"
+          tooltip="Suma de metros perforados en todos los pozos activos durante el período."
           delta={{ value: 12, label: t('vs_last_month') }}
           sparkline={<UI.Sparkline data={MX.sparkMeters} color="#2563EB"/>}
           accent="primary"/>
         <UI.KPI icon={Icon.FolderKanban} label={t('kpi_active_projects')}
-          value="7" unit="proyectos"
+          value={activeProjects.length.toString()} unit="proyectos"
           tooltip="Proyectos con estado activo o en pausa, excluyendo completados."
-          extra={<span className="inline-flex items-center gap-1 text-warning-700"><Icon.CircleAlert size={12}/>1 {t('in_risk')}</span>}
+          extra={riskProjects.length > 0 ? <span className="inline-flex items-center gap-1 text-warning-700"><Icon.CircleAlert size={12}/>{riskProjects.length} {t('in_risk')}</span> : null}
           accent="info"/>
         <UI.KPI icon={Icon.TrendingUp} label={t('kpi_revenue')}
-          value={<span className="font-mono">$1,28B</span>} unit="COP"
-          tooltip="Ingresos facturados este mes. Meta mensual: $1,50B COP."
+          value={<span className="font-mono">${(grandTotal / 1e9).toFixed(2)}B</span>} unit="COP"
+          tooltip="Pipeline total ponderado por período seleccionado."
           extra={
             <div className="w-full mt-1">
-              <UI.Progress value={85} size="sm"/>
-              <div className="flex justify-between text-[10px] text-neutral-500 mt-1"><span>85%</span><span>{t('target')}: $1,50B</span></div>
+              <UI.Progress value={Math.min(100, (grandTotal / 15e9) * 100)} size="sm"/>
+              <div className="flex justify-between text-[10px] text-neutral-500 mt-1">
+                <span>{Math.round((grandTotal / 15e9) * 100)}%</span>
+                <span>{t('target')}: $15,0B</span>
+              </div>
             </div>
           }
           accent="success"/>
         <UI.KPI icon={Icon.HardHat} label={t('kpi_hse_days')}
-          value="312" unit="días"
+          value={hseIncidents.filter((i) => i.type === 'grave' || i.type === 'fatal').length === 0 ? '312' : '0'} unit="días"
           tooltip="Días consecutivos sin incidentes graves o fatales en toda la operación."
           delta={{ value: 0, label: 'racha histórica' }}
           accent="warn"/>
@@ -81,7 +131,7 @@ const PageDashboard = () => {
               </div>
             }/>
           <div className="mt-3">
-            <UI.ColombiaMap pins={MX.projects.filter((p) => p.status !== 'completed')}
+            <UI.ColombiaMap pins={projects.filter((p) => p.status !== 'completed')}
               onPinClick={(p) => go('/proyectos/' + p.id)}/>
           </div>
         </UI.Card>
@@ -91,7 +141,7 @@ const PageDashboard = () => {
             right={<button onClick={() => go('/pipeline')} className="text-xs font-medium text-primary-700 hover:text-primary-500 inline-flex items-center gap-1">Ver completo <Icon.ArrowRight size={12}/></button>}/>
           <div className="mt-4 space-y-2.5">
             {pipelineByStage.map((s, i) => {
-              const max = Math.max(...pipelineByStage.map((x) => x.total));
+              const max = Math.max(...pipelineByStage.map((x) => x.total), 1);
               const pct = (s.total / max) * 100;
               const color = ['#94A3B8','#0EA5E9','#2563EB','#1E3A8A','#10B981'][i];
               return (
@@ -111,11 +161,11 @@ const PageDashboard = () => {
           <div className="mt-5 pt-4 border-t border-neutral-200 grid grid-cols-2 gap-3 text-xs">
             <div>
               <div className="text-neutral-500">{t('pipeline_total')}</div>
-              <div className="font-display font-bold text-lg text-neutral-900 font-mono">$21,2B</div>
+              <div className="font-display font-bold text-lg text-neutral-900 font-mono">${(grandTotal / 1e9).toFixed(1)}B</div>
             </div>
             <div>
               <div className="text-neutral-500">{t('pipeline_weighted')}</div>
-              <div className="font-display font-bold text-lg text-neutral-900 font-mono">$14,8B</div>
+              <div className="font-display font-bold text-lg text-neutral-900 font-mono">${(weighted / 1e9).toFixed(1)}B</div>
             </div>
           </div>
         </UI.Card>
@@ -156,7 +206,7 @@ const PageDashboard = () => {
           <UI.CardHeader title={t('milestones_title')} icon={Icon.Flag}/>
           <ul className="mt-4 space-y-2.5">
             {MX.milestones.map((m) => {
-              const p = m.projectId ? MX.projects.find((x) => x.id === m.projectId) : null;
+              const p = m.projectId ? projects.find((x) => x.id === m.projectId) || MX.projects.find((x) => x.id === m.projectId) : null;
               const sevDot = { high: 'bg-danger-500', med: 'bg-warning-500', low: 'bg-success-500' }[m.priority];
               return (
                 <li key={m.id} className="flex items-start gap-3 py-1.5 px-2 rounded-lg hover:bg-neutral-50 cursor-pointer">
@@ -196,7 +246,7 @@ const PageDashboard = () => {
           <UI.CardHeader title={t('meters_by_project')} icon={Icon.BarChart3}/>
           <div className="mt-4 h-64">
             <R.ResponsiveContainer width="100%" height="100%">
-              <R.BarChart data={MX.metersByProject} margin={{ left: -10, right: 10, top: 10, bottom: 0 }}>
+              <R.BarChart data={metersByProjectData.length > 0 ? metersByProjectData : MX.metersByProject} margin={{ left: -10, right: 10, top: 10, bottom: 0 }}>
                 <R.CartesianGrid strokeDasharray="3 3" stroke="#E2E8F0"/>
                 <R.XAxis dataKey="name" tick={{ fontSize: 11, fill: '#475569' }} axisLine={{ stroke: '#E2E8F0' }} tickLine={false}/>
                 <R.YAxis tick={{ fontSize: 11, fill: '#475569' }} axisLine={false} tickLine={false}/>

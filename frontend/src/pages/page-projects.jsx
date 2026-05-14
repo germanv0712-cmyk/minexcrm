@@ -11,7 +11,9 @@ const PageProjects = () => {
   const [wizardOpen, setWizardOpen] = React.useState(false);
   const [selected, setSelected] = React.useState([]);
 
-  const rows = React.useMemo(() => MX.projects.filter((p) => {
+  const allProjects = Store.useProjects();
+
+  const rows = React.useMemo(() => allProjects.filter((p) => {
     if (filters.status !== 'all' && p.status !== filters.status) return false;
     if (filters.client !== 'all' && p.clientId !== filters.client) return false;
     if (filters.service !== 'all' && p.service !== filters.service) return false;
@@ -31,7 +33,7 @@ const PageProjects = () => {
       </div>
     )},
     { label: t('client'), render: (p) => {
-      const c = MX.clients.find((x) => x.id === p.clientId);
+      const c = Store.clients.find((x) => x.id === p.clientId) || MX.clients.find((x) => x.id === p.clientId) || { name: p.clientId, color: '#94A3B8', logo: '?' };
       return <div className="inline-flex items-center gap-2">
         <span className="h-6 w-6 rounded text-white text-[10px] font-bold inline-flex items-center justify-center" style={{ backgroundColor: c.color }}>{c.logo}</span>
         <span className="text-sm text-neutral-700">{c.name}</span>
@@ -115,8 +117,8 @@ const PageProjects = () => {
       ) : view === 'cards' ? (
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
           {rows.map((p) => {
-            const c = MX.clients.find((x) => x.id === p.clientId);
-            const u = MX.people.find((x) => x.id === p.ownerId);
+            const c = Store.clients.find((x) => x.id === p.clientId) || MX.clients.find((x) => x.id === p.clientId) || { name: p.clientId, color: '#94A3B8', logo: '?' };
+            const u = MX.people.find((x) => x.id === p.ownerId) || { name: 'Equipo', color: '#94A3B8' };
             return (
               <UI.Card key={p.id} className="cursor-pointer hover:shadow-pop transition-shadow" onClick={() => go('/proyectos/' + p.id)} padding={false}>
                 <UI.PlaceholderImg label={p.service} color={p.photo} height={140} className="rounded-b-none"/>
@@ -157,7 +159,7 @@ const PageProjects = () => {
         </UI.Card>
       )}
 
-      <NewProjectWizard open={wizardOpen} onClose={() => setWizardOpen(false)} onCreate={() => { setWizardOpen(false); toast.push({ kind: 'success', title: 'Proyecto creado', desc: 'Se asignó el código PRJ-2026-035 y el equipo base.' }); }}/>
+      <NewProjectWizard open={wizardOpen} onClose={() => setWizardOpen(false)} onCreated={(code) => { setWizardOpen(false); toast.push({ kind: 'success', title: 'Proyecto creado', desc: `Código ${code} listo.` }); }}/>
     </>
   );
 };
@@ -181,15 +183,46 @@ const ViewToggle = ({ value, onChange }) => {
 };
 
 // ============ Wizard ============
-const NewProjectWizard = ({ open, onClose, onCreate }) => {
+const NewProjectWizard = ({ open, onClose, onCreated }) => {
+  const clients = Store.useClients();
+  const nextCode = 'PRJ-2026-0' + (30 + Store.projects.length + 1);
+  const emptyForm = { code: nextCode, name: '', service: 'Perforación diamantina', region: 'Cesar', start: '2026-06-01', end: '2026-12-30', desc: '', clientId: 'c1', contract: '', contractValue: '1850000000', billing: 'hitos', payTerms: '30 días', notes: '', ownerId: 'u1', hseId: 'u2' };
   const [step, setStep] = React.useState(1);
-  React.useEffect(() => { if (open) setStep(1); }, [open]);
+  const [fd, setFd] = React.useState(emptyForm);
+  const set = (k) => (e) => setFd((f) => ({ ...f, [k]: e.target.value }));
+  React.useEffect(() => { if (open) { setStep(1); setFd({ ...emptyForm, code: 'PRJ-2026-0' + (30 + Store.projects.length + 1) }); } }, [open]);
+
   const steps = [
     { id: 1, label: 'Datos generales' },
     { id: 2, label: 'Cliente y contrato' },
     { id: 3, label: 'Equipo y recursos' },
     { id: 4, label: 'Confirmación' },
   ];
+
+  const onCreate = () => {
+    const client = clients.find((c) => c.id === fd.clientId) || MX.clients.find((c) => c.id === fd.clientId);
+    const owner = MX.people.find((u) => u.id === fd.ownerId);
+    Store.addProject({
+      id: 'p' + Date.now(),
+      code: fd.code,
+      name: fd.name || fd.code,
+      service: fd.service,
+      region: fd.region,
+      clientId: fd.clientId,
+      contractValue: Number(fd.contractValue.replace(/\./g, '').replace(',', '.')) || 1850000000,
+      billed: 0,
+      ownerId: fd.ownerId,
+      status: 'active',
+      progress: 0,
+      start: fd.start,
+      end: fd.end,
+      lat: 6.5 + Math.random() * 4,
+      lng: -75 - Math.random() * 4,
+      photo: client?.color || '#2563EB',
+    });
+    onCreated(fd.code);
+  };
+
   return (
     <UI.Drawer open={open} onClose={onClose}
       title="Nuevo proyecto"
@@ -221,36 +254,36 @@ const NewProjectWizard = ({ open, onClose, onCreate }) => {
 
       {step === 1 ? (
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <UI.Field label="Código del proyecto" required><UI.Input defaultValue="PRJ-2026-035"/></UI.Field>
-          <UI.Field label="Nombre" required><UI.Input defaultValue="Exploración Cesar Norte 2026"/></UI.Field>
+          <UI.Field label="Código del proyecto" required><UI.Input value={fd.code} onChange={set('code')}/></UI.Field>
+          <UI.Field label="Nombre" required><UI.Input value={fd.name} onChange={set('name')} placeholder="Exploración Cesar Norte 2026"/></UI.Field>
           <UI.Field label="Tipo de servicio" required>
-            <UI.Select defaultValue="Perforación diamantina">
+            <UI.Select value={fd.service} onChange={set('service')}>
               {serviceTypes.filter((s) => s !== 'all').map((s) => <option key={s}>{s}</option>)}
             </UI.Select>
           </UI.Field>
           <UI.Field label="Región" required>
-            <UI.Select defaultValue="Cesar">
+            <UI.Select value={fd.region} onChange={set('region')}>
               <option>Cesar</option><option>La Guajira</option><option>Antioquia</option><option>Boyacá</option><option>Caldas</option>
             </UI.Select>
           </UI.Field>
-          <UI.Field label="Fecha de inicio" required><UI.Input type="date" defaultValue="2026-06-01"/></UI.Field>
-          <UI.Field label="Fecha de fin estimada" required><UI.Input type="date" defaultValue="2026-12-30"/></UI.Field>
-          <UI.Field label="Descripción" className="sm:col-span-2"><UI.Textarea placeholder="Objetivo del proyecto, alcance técnico y entregables principales…" rows={3}/></UI.Field>
+          <UI.Field label="Fecha de inicio" required><UI.Input type="date" value={fd.start} onChange={set('start')}/></UI.Field>
+          <UI.Field label="Fecha de fin estimada" required><UI.Input type="date" value={fd.end} onChange={set('end')}/></UI.Field>
+          <UI.Field label="Descripción" className="sm:col-span-2"><UI.Textarea value={fd.desc} onChange={set('desc')} placeholder="Objetivo del proyecto, alcance técnico y entregables principales…" rows={3}/></UI.Field>
         </div>
       ) : step === 2 ? (
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <UI.Field label="Cliente (empresa minera)" required className="sm:col-span-2">
-            <UI.Select defaultValue="c2">
-              {MX.clients.map((c) => <option key={c.id} value={c.id}>{c.name} — NIT {c.nit}</option>)}
+            <UI.Select value={fd.clientId} onChange={set('clientId')}>
+              {clients.map((c) => <option key={c.id} value={c.id}>{c.name} — NIT {c.nit || '—'}</option>)}
             </UI.Select>
           </UI.Field>
-          <UI.Field label="Número de contrato"><UI.Input defaultValue="CT-DR-2026-118"/></UI.Field>
-          <UI.Field label="Valor del contrato (COP)" required><UI.Input defaultValue="1.850.000.000"/></UI.Field>
+          <UI.Field label="Número de contrato"><UI.Input value={fd.contract} onChange={set('contract')} placeholder="CT-DR-2026-118"/></UI.Field>
+          <UI.Field label="Valor del contrato (COP)" required><UI.Input value={fd.contractValue} onChange={set('contractValue')} className="font-mono"/></UI.Field>
           <UI.Field label="Modalidad de facturación" required>
-            <UI.Select defaultValue="hitos"><option value="hitos">Por hitos</option><option>Mensual</option><option>Anticipo + saldo</option></UI.Select>
+            <UI.Select value={fd.billing} onChange={set('billing')}><option value="hitos">Por hitos</option><option>Mensual</option><option>Anticipo + saldo</option></UI.Select>
           </UI.Field>
-          <UI.Field label="Términos de pago"><UI.Input defaultValue="30 días después de aprobación de hito"/></UI.Field>
-          <UI.Field label="Notas comerciales" className="sm:col-span-2"><UI.Textarea rows={3} defaultValue="Oportunidad ganada desde el pipeline #OP-001. Cliente requiere reporte semanal."/></UI.Field>
+          <UI.Field label="Términos de pago"><UI.Input value={fd.payTerms} onChange={set('payTerms')}/></UI.Field>
+          <UI.Field label="Notas comerciales" className="sm:col-span-2"><UI.Textarea value={fd.notes} onChange={set('notes')} rows={3} placeholder="Origen de la oportunidad, notas relevantes…"/></UI.Field>
         </div>
       ) : step === 3 ? (
         <div className="space-y-5">
@@ -258,10 +291,10 @@ const NewProjectWizard = ({ open, onClose, onCreate }) => {
             <div className="text-xs font-semibold text-neutral-700 uppercase tracking-wide mb-2">Responsable y equipo asignado</div>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <UI.Field label="Responsable principal" required>
-                <UI.Select defaultValue="u1">{MX.people.map((p) => <option key={p.id} value={p.id}>{p.name} — {p.role}</option>)}</UI.Select>
+                <UI.Select value={fd.ownerId} onChange={set('ownerId')}>{MX.people.map((p) => <option key={p.id} value={p.id}>{p.name} — {p.role}</option>)}</UI.Select>
               </UI.Field>
               <UI.Field label="Supervisor HSE" required>
-                <UI.Select defaultValue="u2">{MX.people.filter((p) => p.role.includes('HSE')).map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}</UI.Select>
+                <UI.Select value={fd.hseId} onChange={set('hseId')}>{MX.people.filter((p) => p.role.includes('HSE')).map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}</UI.Select>
               </UI.Field>
             </div>
             <div className="mt-3 grid grid-cols-1 sm:grid-cols-3 gap-2">
@@ -301,14 +334,14 @@ const NewProjectWizard = ({ open, onClose, onCreate }) => {
           </div>
           <dl className="mt-5 grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-3 text-sm">
             {[
-              ['Código', 'PRJ-2026-035'],
-              ['Nombre', 'Exploración Cesar Norte 2026'],
-              ['Servicio', 'Perforación diamantina'],
-              ['Cliente', 'Drummond Ltd.'],
-              ['Valor contrato', '$1.850.000.000 COP'],
-              ['Inicio / Fin', '2026-06-01 → 2026-12-30'],
-              ['Responsable', 'Carlos Restrepo (Geólogo Senior)'],
-              ['Equipo de campo', 'Atlas Copco CT20 + 1 camioneta'],
+              ['Código', fd.code],
+              ['Nombre', fd.name || '(sin nombre)'],
+              ['Servicio', fd.service],
+              ['Cliente', (clients.find((c) => c.id === fd.clientId) || MX.clients.find((c) => c.id === fd.clientId))?.name || fd.clientId],
+              ['Valor contrato', '$' + fd.contractValue + ' COP'],
+              ['Inicio / Fin', fd.start + ' → ' + fd.end],
+              ['Responsable', MX.people.find((u) => u.id === fd.ownerId)?.name || fd.ownerId],
+              ['Región', fd.region],
             ].map(([k, v]) => (
               <div key={k} className="flex justify-between gap-3 border-b border-neutral-100 pb-2">
                 <dt className="text-neutral-500">{k}</dt>
@@ -326,10 +359,11 @@ const NewProjectWizard = ({ open, onClose, onCreate }) => {
 const PageProjectDetail = ({ id }) => {
   const { t, lang } = useT();
   const { go } = Layout.useRouter();
-  const p = MX.projects.find((x) => x.id === id);
+  const allProjects = Store.useProjects();
+  const p = allProjects.find((x) => x.id === id);
   if (!p) return <UI.EmptyState title="Proyecto no encontrado" desc="Vuelve al listado de proyectos para seleccionar otro." action={<UI.Button onClick={() => go('/proyectos')}>Volver</UI.Button>}/>;
-  const client = MX.clients.find((c) => c.id === p.clientId);
-  const owner = MX.people.find((u) => u.id === p.ownerId);
+  const client = Store.clients.find((c) => c.id === p.clientId) || MX.clients.find((c) => c.id === p.clientId) || { name: p.clientId, color: '#94A3B8', logo: '?', nit: '—' };
+  const owner = MX.people.find((u) => u.id === p.ownerId) || { name: 'Equipo', color: '#94A3B8' };
   const [tab, setTab] = React.useState('summary');
 
   const wellsP = MX.wells.filter((w) => w.projectId === p.id);
