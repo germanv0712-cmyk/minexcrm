@@ -40,17 +40,15 @@ async function buildHandler() {
     res.json({ status: 'ok', db: 'connected', ts: new Date() })
   );
 
-  app.use('/auth',      require('../../backend/src/routes/auth'));
-  app.use('/dashboard', require('../../backend/src/routes/dashboard'));
-  app.use('/projects',  require('../../backend/src/routes/projects'));
-  app.use('/clients',   require('../../backend/src/routes/clients'));
-  app.use('/pipeline',  require('../../backend/src/routes/pipeline'));
-  app.use('/wells',     require('../../backend/src/routes/wells'));
-  app.use('/hse',       require('../../backend/src/routes/hse'));
-  app.use('/fleet',     require('../../backend/src/routes/fleet'));
-  app.use('/personnel', require('../../backend/src/routes/personnel'));
-  app.use('/visits',    require('../../backend/src/routes/visits'));
-  app.use('/files',     require('../../backend/src/routes/files'));
+  const routes = ['auth','dashboard','projects','clients','pipeline','wells','hse','fleet','personnel','visits','files'];
+  for (const r of routes) {
+    try {
+      app.use('/' + r, require('../../backend/src/routes/' + r));
+    } catch (e) {
+      console.error('[ROUTE LOAD ERROR]', r, e.message);
+      app.use('/' + r, (_req, res) => res.status(503).json({ error: 'Route unavailable: ' + r, detail: e.message }));
+    }
+  }
 
   app.use((_req, res) => res.status(404).json({ error: 'Not found' }));
   // eslint-disable-next-line no-unused-vars
