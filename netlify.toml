@@ -1,0 +1,41 @@
+[build]
+  # Publish the frontend static files (CDN-based prototype, no build needed)
+  publish = "frontend"
+  # Functions directory for the Express API wrapper
+  functions = "netlify/functions"
+  # No build command needed — the frontend is static HTML with CDN scripts
+  command = ""
+
+[build.environment]
+  NODE_VERSION = "20"
+
+# Rewrite all /api/* requests to the Netlify Function
+[[redirects]]
+  from   = "/api/*"
+  to     = "/.netlify/functions/api/:splat"
+  status = 200
+
+# Rewrite /webhooks/* to the function as well
+[[redirects]]
+  from   = "/webhooks/*"
+  to     = "/.netlify/functions/api/webhooks/:splat"
+  status = 200
+
+# SPA fallback — all unknown paths serve index.html
+[[redirects]]
+  from   = "/*"
+  to     = "/index.html"
+  status = 200
+
+[functions]
+  # Bundle each function with its Node modules
+  node_bundler = "esbuild"
+  # Increase timeout to 26s (Netlify max for background functions is 900s)
+  [functions.api]
+    timeout = 26
+
+[dev]
+  command   = "cd backend && node src/server.js"
+  port      = 3001
+  targetPort = 3001
+  publish   = "frontend"

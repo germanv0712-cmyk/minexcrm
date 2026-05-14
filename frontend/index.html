@@ -1,0 +1,179 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>MinexCRM — Plataforma operativa y comercial para contratistas mineros</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
+<script src="https://cdn.tailwindcss.com?plugins=forms,typography"></script>
+<script>
+  tailwind.config = {
+    darkMode: 'class',
+    theme: {
+      extend: {
+        fontFamily: {
+          sans:    ['Inter', 'ui-sans-serif', 'system-ui'],
+          display: ['"Plus Jakarta Sans"', 'Inter', 'ui-sans-serif'],
+          mono:    ['"JetBrains Mono"', 'ui-monospace', 'monospace'],
+        },
+        colors: {
+          primary: { 50:'#EFF6FF', 100:'#DBEAFE', 300:'#93C5FD', 500:'#2563EB', 700:'#1E3A8A', 900:'#0A2540' },
+          accent:  { 500:'#0EA5E9' },
+          success: { 50:'#ECFDF5', 500:'#10B981', 700:'#047857' },
+          warning: { 50:'#FFFBEB', 500:'#F59E0B', 700:'#B45309' },
+          danger:  { 50:'#FEF2F2', 500:'#EF4444', 700:'#B91C1C' },
+          neutral: { 50:'#F8FAFC', 100:'#F1F5F9', 200:'#E2E8F0', 300:'#CBD5E1', 400:'#94A3B8', 500:'#64748B', 600:'#475569', 700:'#334155', 800:'#1E293B', 900:'#0F172A' },
+        },
+        boxShadow: {
+          card: '0 1px 2px 0 rgba(15,23,42,0.04), 0 1px 3px 0 rgba(15,23,42,0.06)',
+          pop:  '0 10px 30px -10px rgba(15,23,42,0.18), 0 4px 12px -4px rgba(15,23,42,0.08)',
+        },
+        borderRadius: { card: '12px' },
+      }
+    }
+  }
+</script>
+<style>
+  html, body { background: #F8FAFC; color: #0F172A; }
+  body { font-family: 'Inter', ui-sans-serif, system-ui; font-size: 14px; }
+  .font-display { font-family: 'Plus Jakarta Sans', Inter, ui-sans-serif; }
+  .font-mono { font-family: 'JetBrains Mono', ui-monospace, monospace; }
+  ::-webkit-scrollbar { width: 10px; height: 10px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: #CBD5E1; border-radius: 8px; border: 2px solid transparent; background-clip: padding-box; }
+  ::-webkit-scrollbar-thumb:hover { background: #94A3B8; border: 2px solid transparent; background-clip: padding-box; }
+  .dark ::-webkit-scrollbar-thumb { background: #334155; }
+  @keyframes shimmer { 0% { background-position: -400px 0; } 100% { background-position: 400px 0; } }
+  .skeleton { background: linear-gradient(90deg, #E2E8F0 0px, #F1F5F9 200px, #E2E8F0 400px); background-size: 800px 100%; animation: shimmer 1.4s infinite linear; border-radius: 6px; }
+  @keyframes fadeIn { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
+  .fade-in { animation: fadeIn .35s ease-out both; }
+  .dark body, .dark html { background: #0A1422; color: #E2E8F0; }
+  .dark .bg-white { background-color: #0F1B2D !important; }
+  .dark .bg-neutral-50 { background-color: #0A1422 !important; }
+  .dark .bg-neutral-100 { background-color: #15233A !important; }
+  .dark .border-neutral-200 { border-color: #1F2D45 !important; }
+  .dark .text-neutral-900 { color: #E2E8F0 !important; }
+  .dark .text-neutral-600 { color: #94A3B8 !important; }
+  .dark .text-neutral-500 { color: #94A3B8 !important; }
+  .dark .text-neutral-700 { color: #CBD5E1 !important; }
+  .dark .divide-neutral-200 > * + * { border-color: #1F2D45 !important; }
+  @keyframes pinPulse { 0%,100% { box-shadow: 0 0 0 0 rgba(37,99,235,.6); } 50% { box-shadow: 0 0 0 8px rgba(37,99,235,0); } }
+  .pin-pulse { animation: pinPulse 2s infinite; }
+  .stripe-bg { background-image: repeating-linear-gradient(45deg, #E2E8F0 0 8px, #F1F5F9 8px 16px); }
+  .mx-input { height: 40px; border-radius: 8px; border: 1px solid #E2E8F0; background: #fff; padding: 0 12px; width: 100%; font-size: 14px; color: #0F172A; }
+  .mx-input:focus { outline: none; border-color: #2563EB; box-shadow: 0 0 0 4px rgba(37,99,235,.12); }
+  .dark .mx-input { background: #0F1B2D; border-color: #1F2D45; color: #E2E8F0; }
+  .mx-label { font-size: 12px; font-weight: 500; color: #475569; margin-bottom: 6px; display:block; }
+  .dark .mx-label { color: #94A3B8; }
+  .kan-card { cursor: grab; }
+  .kan-card:active { cursor: grabbing; }
+</style>
+</head>
+<body>
+<div id="root"></div>
+
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/prop-types@15.8.1/prop-types.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/recharts@2.12.7/umd/Recharts.min.js"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" crossorigin="anonymous"></script>
+
+<!-- Auth bridge: handles real JWT auth and exposes window.MxAuth -->
+<script>
+window.MxAuth = (() => {
+  const ACCESS_KEY  = 'mx_access';
+  const REFRESH_KEY = 'mx_refresh';
+  const USER_KEY    = 'mx_user';
+
+  function getUser()         { try { return JSON.parse(localStorage.getItem(USER_KEY)); } catch { return null; } }
+  function getAccessToken()  { return localStorage.getItem(ACCESS_KEY); }
+
+  function save({ accessToken, refreshToken, user }) {
+    localStorage.setItem(ACCESS_KEY,  accessToken);
+    localStorage.setItem(REFRESH_KEY, refreshToken);
+    localStorage.setItem(USER_KEY, JSON.stringify(user));
+  }
+
+  function clear() {
+    localStorage.removeItem(ACCESS_KEY);
+    localStorage.removeItem(REFRESH_KEY);
+    localStorage.removeItem(USER_KEY);
+  }
+
+  async function login(email, password, tenantId) {
+    const res = await fetch('/api/auth/login', {
+      method:  'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body:    JSON.stringify({ email, password, tenantId }),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Login failed');
+    save(data);
+    return data.user;
+  }
+
+  async function logout() {
+    const refreshToken = localStorage.getItem(REFRESH_KEY);
+    const accessToken  = getAccessToken();
+    if (refreshToken && accessToken) {
+      await fetch('/api/auth/logout', {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${accessToken}` },
+        body:    JSON.stringify({ refreshToken }),
+      }).catch(() => {});
+    }
+    clear();
+  }
+
+  async function apiFetch(url, options = {}) {
+    const headers = { 'Content-Type': 'application/json', ...options.headers };
+    const token = getAccessToken();
+    if (token) headers['Authorization'] = `Bearer ${token}`;
+
+    const res = await fetch(url, { ...options, headers });
+
+    if (res.status === 401) {
+      // Try refresh
+      const rt = localStorage.getItem(REFRESH_KEY);
+      if (!rt) { clear(); window.location.hash = '#/login'; throw new Error('Session expired'); }
+      const rfRes = await fetch('/api/auth/refresh', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ refreshToken: rt }),
+      });
+      if (!rfRes.ok) { clear(); window.location.hash = '#/login'; throw new Error('Session expired'); }
+      const rfData = await rfRes.json();
+      localStorage.setItem(ACCESS_KEY,  rfData.accessToken);
+      localStorage.setItem(REFRESH_KEY, rfData.refreshToken);
+      // Retry
+      headers['Authorization'] = `Bearer ${rfData.accessToken}`;
+      return fetch(url, { ...options, headers });
+    }
+    return res;
+  }
+
+  return { login, logout, getUser, getAccessToken, apiFetch, clear };
+})();
+</script>
+
+<script type="text/babel" src="src/pages/icons.jsx"></script>
+<script type="text/babel" src="src/pages/i18n.jsx"></script>
+<script type="text/babel" src="src/pages/mocks.jsx"></script>
+<script type="text/babel" src="src/pages/components.jsx"></script>
+<script type="text/babel" src="src/pages/layout.jsx"></script>
+<script type="text/babel" src="src/pages/page-login.jsx"></script>
+<script type="text/babel" src="src/pages/page-dashboard.jsx"></script>
+<script type="text/babel" src="src/pages/page-projects.jsx"></script>
+<script type="text/babel" src="src/pages/page-clients.jsx"></script>
+<script type="text/babel" src="src/pages/page-pipeline.jsx"></script>
+<script type="text/babel" src="src/pages/page-drilling.jsx"></script>
+<script type="text/babel" src="src/pages/page-field.jsx"></script>
+<script type="text/babel" src="src/pages/page-hse.jsx"></script>
+<script type="text/babel" src="src/pages/page-fleet.jsx"></script>
+<script type="text/babel" src="src/pages/page-personnel.jsx"></script>
+<script type="text/babel" src="src/pages/page-reports.jsx"></script>
+<script type="text/babel" src="src/pages/page-portal.jsx"></script>
+<script type="text/babel" src="src/pages/page-settings.jsx"></script>
+<script type="text/babel" src="src/pages/app.jsx"></script>
+</body>
+</html>
