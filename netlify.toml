@@ -2,7 +2,7 @@
   publish = "frontend"
   functions = "netlify/functions"
   # Install root deps (includes all backend packages needed by the function)
-  command = "npm install"
+  command = "npm install && cd backend && npx prisma generate && cd .."
 
 [build.environment]
   NODE_VERSION = "20"
