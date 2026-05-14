@@ -11,22 +11,25 @@ const PageLogin = () => {
   const [loginErr, setLoginErr] = React.useState('');
   const [loginLoading, setLoginLoading] = React.useState(false);
 
+  const DEMO_MODE_TRIGGERS = ['Failed to fetch', 'NetworkError', 'fetch', 'DATABASE_URL', '503', 'Service Unavailable'];
+
   const submitLogin = async (e) => {
     e.preventDefault();
     setLoginErr('');
     setLoginLoading(true);
     try {
-      // Attempt real backend auth first
+      // Attempt real backend auth
       const user = await window.MxAuth.login(email, pwd);
       setAuth((a) => ({ ...a, signed: true, user }));
       go('/dashboard');
     } catch (err) {
-      // Fallback: demo mode (no backend running)
-      if (err.message && (err.message.includes('Failed to fetch') || err.message.includes('NetworkError') || err.message.includes('fetch'))) {
-        // Dev/demo mode — bypass auth
+      const msg = err.message || '';
+      // Demo mode: activate when backend is unreachable or DB not yet configured
+      const isDemo = DEMO_MODE_TRIGGERS.some((t) => msg.includes(t));
+      if (isDemo) {
         setStep('2fa');
       } else {
-        setLoginErr(err.message || 'Credenciales incorrectas');
+        setLoginErr(msg || 'Credenciales incorrectas');
       }
     } finally {
       setLoginLoading(false);
