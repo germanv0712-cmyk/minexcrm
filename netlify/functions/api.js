@@ -65,8 +65,10 @@ async function buildHandler() {
 }
 
 exports.handler = async (event, context) => {
-  // Strip /.netlify/functions/api prefix → routes resolve as /auth/login etc.
-  event.path = event.path.replace(/^\/.netlify\/functions\/api/, '') || '/';
+  // Strip function or /api prefix so Express routes resolve as /auth/login etc.
+  event.path = event.path
+    .replace(/^\/.netlify\/functions\/api/, '')
+    .replace(/^\/api/, '') || '/';
 
   try {
     const fn = await buildHandler();
