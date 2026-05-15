@@ -149,7 +149,7 @@ const PageLogin = () => {
           </div>
           <div className="flex items-center justify-between text-xs text-primary-300">
             <span>© 2026 MinexCRM · Bogotá, Colombia</span>
-            <span className="font-mono">v2.4.0 · Enterprise</span>
+            <span className="font-mono">build-10 · Enterprise</span>
           </div>
         </div>
       </div>
