@@ -1,4 +1,4 @@
-// Store reactivo global — API real cuando hay JWT, localStorage+MX cuando demo
+// Store reactivo global — API real cuando hay JWT, MX demo cuando no hay token
 window.Store = (() => {
   const KEY = 'mx_store_v1';
 
@@ -28,9 +28,7 @@ window.Store = (() => {
       amount: Number(o.amount) || 0,
     }),
 
-    // API IncidentType → tipo pantalla
     incType: { NEAR_MISS:'cuasi', ACCIDENT:'leve', ENVIRONMENTAL:'leve', PROPERTY_DAMAGE:'leve', SECURITY:'grave' },
-    // severity upgrade: ACCIDENT+HIGH → grave, ACCIDENT+CRITICAL → fatal
     incident: (i) => {
       let type = norm.incType[i.type] || 'cuasi';
       if (i.type === 'ACCIDENT') {
@@ -46,44 +44,52 @@ window.Store = (() => {
       depthCur: w.depthCurrent,
     }),
 
-    // tipo pantalla → IncidentType para POST al API
     mxTypeToApi: { cuasi:'NEAR_MISS', leve:'ACCIDENT', grave:'ACCIDENT', fatal:'ACCIDENT' },
     mxTypeToSev: { cuasi:'LOW', leve:'LOW', grave:'HIGH', fatal:'CRITICAL' },
   };
 
-  // ─── Estado local (fallback cuando no hay API) ────────────────────────────
-  let additions = { projects: [], clients: [], opportunities: [], incidents: [], wells: [] };
-  try {
-    const saved = JSON.parse(localStorage.getItem(KEY) || '{}');
-    Object.keys(additions).forEach((k) => { if (saved[k]) additions[k] = saved[k]; });
-  } catch (_) {}
-
-  const state = {
-    projects:      [...MX.projects,      ...additions.projects],
-    clients:       [...MX.clients,       ...additions.clients],
-    opportunities: [...MX.opportunities, ...additions.opportunities],
-    incidents:     [...MX.incidents,     ...additions.incidents],
-    wells:         [...MX.wells,         ...additions.wells],
-    personnel:     [...(MX.people || [])],
-  };
-
-  function persist() {
-    try { localStorage.setItem(KEY, JSON.stringify(additions)); } catch (_) {}
-    window.dispatchEvent(new Event('store:update'));
-  }
-
-  // ─── Helpers de API ───────────────────────────────────────────────────────
-  function hasToken() { return !!(window.Auth && Auth.getAccessToken()); }
+  // ─── Helpers de API (declarados primero para usarlos en init) ─────────────
+  function hasToken() { return !!(window.MxAuth && MxAuth.getAccessToken()); }
 
   async function apiFetch(url, opts = {}) {
     if (!hasToken()) return null;
     try {
-      const r = await Auth.apiFetch(url, opts);
+      const r = await MxAuth.apiFetch(url, opts);
       if (!r.ok) return null;
       return r.json();
     } catch (_) { return null; }
   }
 
+  // ─── Estado ─────────────────────────────────────────────────────────────
+  // En modo API (JWT presente): empieza vacío, se llena con syncX()
+  // En modo demo (sin JWT): usa MX.* + adiciones guardadas en localStorage
+  let additions = { projects: [], clients: [], opportunities: [], incidents: [], wells: [] };
+  const apiMode = hasToken();
+
+  if (!apiMode) {
+    try {
+      const saved = JSON.parse(localStorage.getItem(KEY) || '{}');
+      Object.keys(additions).forEach((k) => { if (saved[k]) additions[k] = saved[k]; });
+    } catch (_) {}
+  }
+
+  const state = {
+    projects:      apiMode ? [] : [...MX.projects,      ...additions.projects],
+    clients:       apiMode ? [] : [...MX.clients,       ...additions.clients],
+    opportunities: apiMode ? [] : [...MX.opportunities, ...additions.opportunities],
+    incidents:     apiMode ? [] : [...MX.incidents,     ...additions.incidents],
+    wells:         apiMode ? [] : [...MX.wells,         ...additions.wells],
+    personnel:     apiMode ? [] : [...(MX.people || [])],
+  };
+
+  function persist() {
+    if (!hasToken()) {
+      try { localStorage.setItem(KEY, JSON.stringify(additions)); } catch (_) {}
+    }
+    window.dispatchEvent(new Event('store:update'));
+  }
+
+  // ─── Sync desde API ───────────────────────────────────────────────────────
   async function syncProjects() {
     const res = await apiFetch('/api/projects?limit=200');
     if (res && res.items) { state.projects = res.items.map(norm.project); window.dispatchEvent(new Event('store:update')); }
@@ -203,7 +209,7 @@ window.Store = (() => {
     return function() {
       const [data, setData] = React.useState(() => [...getArr()]);
       React.useEffect(() => {
-        syncFn(); // cargar desde API si hay token
+        syncFn();
         const sync = () => setData([...getArr()]);
         window.addEventListener('store:update', sync);
         return () => window.removeEventListener('store:update', sync);
