@@ -1,4 +1,12 @@
-// Store reactivo global — API real cuando hay JWT, MX demo cuando no hay token
+// Store reactivo global — API real cuando hay JWT, vacío cuando no hay token
+// Borra TODOS los arrays de datos de MX.* al cargar, sin importar versión en caché
+if (window.MX) {
+  ['clients','projects','wells','equipment','opportunities','incidents',
+   'permits','activity','milestones','alerts','notifications','litho',
+   'drillLog','surveys','coreBoxes','visits','sparkMeters','hseTrend',
+   'metersByProject'].forEach(function(k) { window.MX[k] = []; });
+}
+
 window.Store = (() => {
   const KEY = 'mx_store_v1';
 
@@ -63,29 +71,19 @@ window.Store = (() => {
   // ─── Estado ─────────────────────────────────────────────────────────────
   // En modo API (JWT presente): empieza vacío, se llena con syncX()
   // En modo demo (sin JWT): usa MX.* + adiciones guardadas en localStorage
-  let additions = { projects: [], clients: [], opportunities: [], incidents: [], wells: [] };
   const apiMode = hasToken();
 
-  if (!apiMode) {
-    try {
-      const saved = JSON.parse(localStorage.getItem(KEY) || '{}');
-      Object.keys(additions).forEach((k) => { if (saved[k]) additions[k] = saved[k]; });
-    } catch (_) {}
-  }
-
+  // Estado siempre vacío al iniciar — se llena desde la API o desde localStorage
   const state = {
-    projects:      apiMode ? [] : [...MX.projects,      ...additions.projects],
-    clients:       apiMode ? [] : [...MX.clients,       ...additions.clients],
-    opportunities: apiMode ? [] : [...MX.opportunities, ...additions.opportunities],
-    incidents:     apiMode ? [] : [...MX.incidents,     ...additions.incidents],
-    wells:         apiMode ? [] : [...MX.wells,         ...additions.wells],
-    personnel:     apiMode ? [] : [...(MX.people || [])],
+    projects:      [],
+    clients:       [],
+    opportunities: [],
+    incidents:     [],
+    wells:         [],
+    personnel:     [],
   };
 
   function persist() {
-    if (!hasToken()) {
-      try { localStorage.setItem(KEY, JSON.stringify(additions)); } catch (_) {}
-    }
     window.dispatchEvent(new Event('store:update'));
   }
 
@@ -129,8 +127,6 @@ window.Store = (() => {
       };
       await apiFetch('/api/projects', { method: 'POST', body: JSON.stringify(body) });
       await syncProjects();
-    } else {
-      additions.projects.push(p); state.projects.push(p); persist();
     }
   }
 
@@ -138,8 +134,6 @@ window.Store = (() => {
     if (hasToken()) {
       await apiFetch('/api/clients', { method: 'POST', body: JSON.stringify({ ...c, tier: c.tier || 'C' }) });
       await syncClients();
-    } else {
-      additions.clients.push(c); state.clients.push(c); persist();
     }
   }
 
@@ -153,8 +147,6 @@ window.Store = (() => {
       };
       await apiFetch('/api/pipeline', { method: 'POST', body: JSON.stringify(body) });
       await syncOpportunities();
-    } else {
-      additions.opportunities.push(o); state.opportunities.push(o); persist();
     }
   }
 
@@ -164,7 +156,7 @@ window.Store = (() => {
       await syncOpportunities();
     } else {
       const o = state.opportunities.find((x) => x.id === id);
-      if (o) { o.stage = stage; const ao = additions.opportunities.find((x) => x.id === id); if (ao) ao.stage = stage; }
+      if (o) { o.stage = stage; }
       persist();
     }
   }
@@ -183,8 +175,6 @@ window.Store = (() => {
       };
       await apiFetch('/api/hse/incidents', { method: 'POST', body: JSON.stringify(body) });
       await syncIncidents();
-    } else {
-      additions.incidents.push(i); state.incidents.push(i); persist();
     }
   }
 
@@ -199,8 +189,6 @@ window.Store = (() => {
       };
       await apiFetch('/api/wells', { method: 'POST', body: JSON.stringify(body) });
       await syncWells();
-    } else {
-      additions.wells.push(w); state.wells.push(w); persist();
     }
   }
 
