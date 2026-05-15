@@ -19,9 +19,10 @@ const PageLogin = () => {
     setLoginLoading(true);
     try {
       // Attempt real backend auth
-      const user = await window.MxAuth.login(email, pwd);
-      setAuth((a) => ({ ...a, signed: true, user }));
-      go('/dashboard');
+      await window.MxAuth.login(email, pwd);
+      // Full reload so store.jsx re-initializes with JWT present (apiMode = true)
+      window.location.hash = '#/dashboard';
+      window.location.reload();
     } catch (err) {
       const msg = err.message || '';
       // Demo mode: activate when backend is unreachable or DB not yet configured
