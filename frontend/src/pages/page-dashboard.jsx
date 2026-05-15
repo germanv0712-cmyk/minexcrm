@@ -64,6 +64,15 @@ const PageDashboard = () => {
     return incidents.filter((i) => projects.some((p) => p.id === i.projectId));
   }, [incidents, projects]);
 
+  const hseDays = React.useMemo(() => {
+    if (hseIncidents.length === 0) return '—';
+    const bad = hseIncidents.filter((i) => i.type === 'grave' || i.type === 'fatal');
+    const ref = bad.length > 0
+      ? bad.sort((a, b) => new Date(b.date) - new Date(a.date))[0]
+      : hseIncidents.sort((a, b) => new Date(a.date) - new Date(b.date))[0];
+    return String(Math.floor((Date.now() - new Date(ref.date)) / 86400000));
+  }, [hseIncidents]);
+
   return (
     <>
       <UI.SectionHeader
@@ -90,7 +99,7 @@ const PageDashboard = () => {
       {/* Row 1 — KPIs */}
       <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4 mb-6">
         <UI.KPI icon={Icon.Drill} label={t('kpi_meters')}
-          value={<span className="font-mono">{MX.formatNum(Math.round(totalMeters) || 2487)}</span>} unit="m"
+          value={<span className="font-mono">{MX.formatNum(Math.round(totalMeters))}</span>} unit="m"
           tooltip="Suma de metros perforados en todos los pozos activos durante el período."
           delta={{ value: 12, label: t('vs_last_month') }}
           sparkline={<UI.Sparkline data={MX.sparkMeters} color="#2563EB"/>}
@@ -114,7 +123,7 @@ const PageDashboard = () => {
           }
           accent="success"/>
         <UI.KPI icon={Icon.HardHat} label={t('kpi_hse_days')}
-          value={hseIncidents.filter((i) => i.type === 'grave' || i.type === 'fatal').length === 0 ? '312' : '0'} unit="días"
+          value={hseDays} unit={hseDays === '—' ? '' : 'días'}
           tooltip="Días consecutivos sin incidentes graves o fatales en toda la operación."
           delta={{ value: 0, label: 'racha histórica' }}
           accent="warn"/>
@@ -247,7 +256,7 @@ const PageDashboard = () => {
           <UI.CardHeader title={t('meters_by_project')} icon={Icon.BarChart3}/>
           <div className="mt-4 h-64">
             <R.ResponsiveContainer width="100%" height="100%">
-              <R.BarChart data={metersByProjectData.length > 0 ? metersByProjectData : MX.metersByProject} margin={{ left: -10, right: 10, top: 10, bottom: 0 }}>
+              <R.BarChart data={metersByProjectData} margin={{ left: -10, right: 10, top: 10, bottom: 0 }}>
                 <R.CartesianGrid strokeDasharray="3 3" stroke="#E2E8F0"/>
                 <R.XAxis dataKey="name" tick={{ fontSize: 11, fill: '#475569' }} axisLine={{ stroke: '#E2E8F0' }} tickLine={false}/>
                 <R.YAxis tick={{ fontSize: 11, fill: '#475569' }} axisLine={false} tickLine={false}/>
