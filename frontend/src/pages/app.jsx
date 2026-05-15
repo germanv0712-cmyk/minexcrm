@@ -34,15 +34,18 @@ const PageRoot = () => {
   const segs = clean.split('/').filter(Boolean);
   const root = segs[0] || 'login';
 
+  // Route guard effect — always called (no conditional hook violation)
+  const allowed = ROUTE_ROLES[root];
+  const blocked = !!(allowed && !allowed.includes(userRole));
+  React.useEffect(() => {
+    if (blocked) go(defaultRoute(userRole));
+  }, [blocked, userRole]);
+
   // Login is full screen (no AppLayout)
   if (root === 'login' || root === '') return <PageLogin/>;
 
-  // Route guard — redirect if role not allowed
-  const allowed = ROUTE_ROLES[root];
-  if (allowed && !allowed.includes(userRole)) {
-    React.useEffect(() => { go(defaultRoute(userRole)); }, []);
-    return null;
-  }
+  // Redirect in progress
+  if (blocked) return null;
 
   // All other routes go inside AppLayout
   return (
