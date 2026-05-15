@@ -48,16 +48,16 @@ const PageHSE = ({ sub }) => {
 
 const IncidentsTab = () => {
   const { t, lang } = useT();
+  const { auth } = Layout.useApp();
   const [open, setOpen] = React.useState(false);
   const [eventType, setEventType] = React.useState('cuasi');
   const allProjects = Store.useProjects();
   const incidents = Store.useIncidents();
   const toast = UI.useToast();
-  const emptyForm = { projectId: 'p1', datetime: '', location: '11.4523° N · -72.9510° W', desc: '', actions: '', investigatorId: 'u2' };
-  const [form, setForm] = React.useState(emptyForm);
+  const [form, setForm] = React.useState({ projectId: '', datetime: '', location: '', desc: '', actions: '', investigatorId: '' });
   const set = (k) => (e) => setForm((f) => ({ ...f, [k]: e.target.value }));
   React.useEffect(() => { window._openIncident = () => setOpen(true); return () => { delete window._openIncident; }; }, []);
-  React.useEffect(() => { if (open) { setEventType('cuasi'); setForm({ ...emptyForm, projectId: allProjects[0]?.id || 'p1' }); } }, [open]);
+  React.useEffect(() => { if (open) { setEventType('cuasi'); setForm({ projectId: allProjects[0]?.id || '', datetime: '', location: '', desc: '', actions: '', investigatorId: auth.user?.id || '' }); } }, [open, allProjects.length]);
 
   const onSubmit = () => {
     Store.addIncident({ id: 'inc' + Date.now(), type: eventType, projectId: form.projectId, date: form.datetime ? new Date(form.datetime).toISOString() : new Date().toISOString(), location: form.location, desc: form.desc || 'Incidente en campo', actions: form.actions || 'Pendiente investigación', investigatorId: form.investigatorId, status: 'open' });

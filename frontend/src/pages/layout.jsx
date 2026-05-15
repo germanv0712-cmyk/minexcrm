@@ -23,7 +23,12 @@ const useRouter = () => React.useContext(RouterContext);
 // ============ Auth/Tenant context ============
 const AppContext = React.createContext({});
 const AppProvider = ({ children }) => {
-  const [auth, setAuth] = React.useState({ user: { name: 'Camilo Echeverri', role: 'Admin', email: 'cecheverri@geoandes.co', avatar: 'CE', color: '#2563EB' }, signed: false });
+  const [auth, setAuth] = React.useState(() => {
+    const u = window.MxAuth?.getUser();
+    return u
+      ? { signed: true, user: u }
+      : { signed: false, user: { name: 'Demo', role: 'ADMIN', email: '', avatar: 'DM', color: '#2563EB' } };
+  });
   const [tenant, setTenant] = React.useState(MX.tenants[0]);
   const [dark, setDark] = React.useState(() => localStorage.getItem('mx_dark') === '1');
   React.useEffect(() => {
@@ -35,33 +40,40 @@ const AppProvider = ({ children }) => {
 };
 const useApp = () => React.useContext(AppContext);
 
+// ============ RBAC ============
+const ALL_ROLES = ['SUPER_ADMIN','ADMIN','MANAGER','FIELD','VIEWER','PORTAL'];
+const MGMT      = ['SUPER_ADMIN','ADMIN','MANAGER'];
+const OPS       = ['SUPER_ADMIN','ADMIN','MANAGER','FIELD'];
+
 // ============ Sidebar ============
 const NAV = [
-  { id: 'dashboard', labelKey: 'nav_dashboard', icon: 'LayoutDashboard', route: '/dashboard' },
-  { id: 'projects',  labelKey: 'nav_projects',  icon: 'FolderKanban',    route: '/proyectos' },
-  { id: 'clients',   labelKey: 'nav_clients',   icon: 'Building2',       route: '/clientes' },
-  { id: 'pipeline',  labelKey: 'nav_pipeline',  icon: 'TrendingUp',      route: '/pipeline' },
-  { id: 'field',     labelKey: 'nav_field',     icon: 'HardHat', children: [
+  { id: 'dashboard', labelKey: 'nav_dashboard', icon: 'LayoutDashboard', route: '/dashboard', roles: ['SUPER_ADMIN','ADMIN','MANAGER','FIELD','VIEWER'] },
+  { id: 'projects',  labelKey: 'nav_projects',  icon: 'FolderKanban',    route: '/proyectos', roles: ['SUPER_ADMIN','ADMIN','MANAGER','FIELD','VIEWER'] },
+  { id: 'clients',   labelKey: 'nav_clients',   icon: 'Building2',       route: '/clientes',  roles: MGMT },
+  { id: 'pipeline',  labelKey: 'nav_pipeline',  icon: 'TrendingUp',      route: '/pipeline',  roles: MGMT },
+  { id: 'field',     labelKey: 'nav_field',     icon: 'HardHat',         roles: OPS, children: [
     { id: 'drilling', labelKey: 'nav_drilling', route: '/perforaciones' },
     { id: 'topo',     labelKey: 'nav_topo',     route: '/topografia' },
     { id: 'geology',  labelKey: 'nav_geology',  route: '/geologia' },
     { id: 'visits',   labelKey: 'nav_visits',   route: '/visitas' },
   ]},
-  { id: 'hse',       labelKey: 'nav_hse',       icon: 'ShieldAlert', children: [
+  { id: 'hse',       labelKey: 'nav_hse',       icon: 'ShieldAlert',     roles: OPS, children: [
     { id: 'incidents', labelKey: 'nav_incidents', route: '/hse/incidentes' },
     { id: 'permits',   labelKey: 'nav_permits',   route: '/hse/permisos' },
     { id: 'epp',       labelKey: 'nav_epp',       route: '/hse/epp' },
   ]},
-  { id: 'fleet',    labelKey: 'nav_fleet',     icon: 'Truck',           route: '/flota' },
-  { id: 'people',   labelKey: 'nav_personnel', icon: 'Users',           route: '/personal' },
-  { id: 'reports',  labelKey: 'nav_reports',   icon: 'BarChart3',       route: '/reportes' },
-  { id: 'portal',   labelKey: 'nav_portal',    icon: 'Globe',           route: '/portal' },
+  { id: 'fleet',    labelKey: 'nav_fleet',     icon: 'Truck',           route: '/flota',    roles: MGMT },
+  { id: 'people',   labelKey: 'nav_personnel', icon: 'Users',           route: '/personal', roles: MGMT },
+  { id: 'reports',  labelKey: 'nav_reports',   icon: 'BarChart3',       route: '/reportes', roles: ['SUPER_ADMIN','ADMIN','MANAGER','VIEWER'] },
+  { id: 'portal',   labelKey: 'nav_portal',    icon: 'Globe',           route: '/portal',   roles: ['SUPER_ADMIN','ADMIN','MANAGER','PORTAL'] },
 ];
-const SETTINGS_NAV = { id: 'settings', labelKey: 'nav_settings', icon: 'Settings', route: '/configuracion' };
+const SETTINGS_NAV = { id: 'settings', labelKey: 'nav_settings', icon: 'Settings', route: '/configuracion', roles: ['SUPER_ADMIN','ADMIN'] };
 
 const Sidebar = ({ collapsed, setCollapsed }) => {
   const { t } = useT();
   const { path, go } = useRouter();
+  const { auth } = useApp();
+  const userRole = (auth.user?.role || 'VIEWER').toUpperCase();
   const [openGroup, setOpenGroup] = React.useState(() => {
     if (path.includes('/perforaciones') || path.includes('/topografia') || path.includes('/geologia') || path.includes('/visitas')) return 'field';
     if (path.includes('/hse/')) return 'hse';
@@ -71,6 +83,8 @@ const Sidebar = ({ collapsed, setCollapsed }) => {
     if (path.includes('/perforaciones') || path.includes('/topografia') || path.includes('/geologia') || path.includes('/visitas')) setOpenGroup('field');
     if (path.includes('/hse/')) setOpenGroup('hse');
   }, [path]);
+
+  const canSee = (it) => !it.roles || it.roles.includes(userRole);
 
   const isActive = (route) => path.startsWith('#' + route);
 
@@ -140,9 +154,9 @@ const Sidebar = ({ collapsed, setCollapsed }) => {
         ) : null}
       </div>
       <nav className={`flex-1 overflow-y-auto py-3 ${collapsed ? 'px-1' : 'px-2'}`}>
-        {NAV.map(item)}
+        {NAV.filter(canSee).map(item)}
         <div className="my-2 border-t border-white/5"/>
-        {item(SETTINGS_NAV)}
+        {canSee(SETTINGS_NAV) ? item(SETTINGS_NAV) : null}
       </nav>
       {collapsed ? (
         <button onClick={() => setCollapsed(false)} className="m-2 p-2 rounded-lg text-neutral-400 hover:bg-white/5 hover:text-white flex items-center justify-center" aria-label="Expandir">
@@ -162,7 +176,7 @@ const Sidebar = ({ collapsed, setCollapsed }) => {
 // ============ Topbar ============
 const Topbar = ({ collapsed, setCollapsed, onMobileMenu }) => {
   const { t, lang, setLang } = useT();
-  const { tenant, setTenant, dark, setDark, auth } = useApp();
+  const { tenant, setTenant, dark, setDark, auth, setAuth } = useApp();
   const { go } = useRouter();
   const [searchOpen, setSearchOpen] = React.useState(false);
   const [searchQ, setSearchQ] = React.useState('');
@@ -352,7 +366,7 @@ const Topbar = ({ collapsed, setCollapsed, onMobileMenu }) => {
               <button className="w-full text-left px-4 py-2 hover:bg-neutral-50 text-sm flex items-center gap-2 text-neutral-700"><Icon.IdCard size={14}/>{t('profile')}</button>
               <button onClick={() => { go('/configuracion'); setUserOpen(false); }} className="w-full text-left px-4 py-2 hover:bg-neutral-50 text-sm flex items-center gap-2 text-neutral-700"><Icon.Settings size={14}/>{t('nav_settings')}</button>
               <div className="my-1 border-t border-neutral-200"/>
-              <button onClick={() => go('/login')} className="w-full text-left px-4 py-2 hover:bg-neutral-50 text-sm flex items-center gap-2 text-danger-700"><Icon.LogOut size={14}/>{t('logout')}</button>
+              <button onClick={async () => { await window.MxAuth?.logout().catch(() => {}); setAuth({ signed: false, user: { name: 'Demo', role: 'ADMIN', email: '', avatar: 'DM', color: '#2563EB' } }); go('/login'); }} className="w-full text-left px-4 py-2 hover:bg-neutral-50 text-sm flex items-center gap-2 text-danger-700"><Icon.LogOut size={14}/>{t('logout')}</button>
             </div>
           </div>
         ) : null}
@@ -391,6 +405,9 @@ const MobileBottomNav = () => {
 const MobileNavDrawer = ({ open, onClose }) => {
   const { t } = useT();
   const { go, path } = useRouter();
+  const { auth } = useApp();
+  const userRole = (auth.user?.role || 'VIEWER').toUpperCase();
+  const canSee = (it) => !it.roles || it.roles.includes(userRole);
   if (!open) return null;
   return (
     <div className="md:hidden fixed inset-0 z-50">
@@ -400,7 +417,7 @@ const MobileNavDrawer = ({ open, onClose }) => {
           <UI.Logo dark/>
           <button onClick={onClose} className="text-neutral-300 p-2"><Icon.X size={18}/></button>
         </div>
-        {NAV.map((it) => {
+        {NAV.filter(canSee).map((it) => {
           const IconCmp = Icon[it.icon];
           if (it.children) {
             return (
@@ -422,10 +439,12 @@ const MobileNavDrawer = ({ open, onClose }) => {
             </button>
           );
         })}
-        <button onClick={() => { go(SETTINGS_NAV.route); onClose(); }}
-          className={`flex items-center gap-3 w-full px-3 py-2.5 rounded-lg text-sm mt-2 ${path.startsWith('#' + SETTINGS_NAV.route) ? 'bg-primary-500 text-white' : 'text-neutral-300 hover:bg-white/5'}`}>
-          <Icon.Settings size={18}/>{t(SETTINGS_NAV.labelKey)}
-        </button>
+        {canSee(SETTINGS_NAV) ? (
+          <button onClick={() => { go(SETTINGS_NAV.route); onClose(); }}
+            className={`flex items-center gap-3 w-full px-3 py-2.5 rounded-lg text-sm mt-2 ${path.startsWith('#' + SETTINGS_NAV.route) ? 'bg-primary-500 text-white' : 'text-neutral-300 hover:bg-white/5'}`}>
+            <Icon.Settings size={18}/>{t(SETTINGS_NAV.labelKey)}
+          </button>
+        ) : null}
       </aside>
     </div>
   );

@@ -64,6 +64,7 @@ window.Store = (() => {
     opportunities: [...MX.opportunities, ...additions.opportunities],
     incidents:     [...MX.incidents,     ...additions.incidents],
     wells:         [...MX.wells,         ...additions.wells],
+    personnel:     [...(MX.people || [])],
   };
 
   function persist() {
@@ -105,6 +106,10 @@ window.Store = (() => {
   async function syncWells() {
     const res = await apiFetch('/api/wells?limit=200');
     if (Array.isArray(res)) { state.wells = res.map(norm.well); window.dispatchEvent(new Event('store:update')); }
+  }
+  async function syncPersonnel() {
+    const res = await apiFetch('/api/personnel?limit=200');
+    if (Array.isArray(res)) { state.personnel = res; window.dispatchEvent(new Event('store:update')); }
   }
 
   // ─── CRUD ────────────────────────────────────────────────────────────────
@@ -212,6 +217,7 @@ window.Store = (() => {
   const useOpportunities = makeHook(() => state.opportunities, syncOpportunities);
   const useIncidents     = makeHook(() => state.incidents,     syncIncidents);
   const useWells         = makeHook(() => state.wells,         syncWells);
+  const usePersonnel     = makeHook(() => state.personnel,     syncPersonnel);
 
   return {
     get projects()      { return state.projects; },
@@ -219,9 +225,9 @@ window.Store = (() => {
     get opportunities() { return state.opportunities; },
     get incidents()     { return state.incidents; },
     get wells()         { return state.wells; },
+    get personnel()     { return state.personnel; },
     addProject, addClient, addOpportunity, moveOpportunity, addIncident, addWell,
-    useProjects, useClients, useOpportunities, useIncidents, useWells,
-    // Exponer sync para uso manual si se necesita
-    syncProjects, syncClients, syncOpportunities, syncIncidents, syncWells,
+    useProjects, useClients, useOpportunities, useIncidents, useWells, usePersonnel,
+    syncProjects, syncClients, syncOpportunities, syncIncidents, syncWells, syncPersonnel,
   };
 })();

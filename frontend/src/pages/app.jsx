@@ -1,15 +1,48 @@
 // App.jsx — root + routing
-const { RouterProvider, useRouter, AppProvider, AppLayout } = Layout;
+const { RouterProvider, useRouter, AppProvider, AppLayout, useApp } = Layout;
+
+// ─── RBAC route guards ────────────────────────────────────────────────────────
+const ROUTE_ROLES = {
+  dashboard:     ['SUPER_ADMIN','ADMIN','MANAGER','FIELD','VIEWER'],
+  proyectos:     ['SUPER_ADMIN','ADMIN','MANAGER','FIELD','VIEWER'],
+  clientes:      ['SUPER_ADMIN','ADMIN','MANAGER'],
+  pipeline:      ['SUPER_ADMIN','ADMIN','MANAGER'],
+  perforaciones: ['SUPER_ADMIN','ADMIN','MANAGER','FIELD'],
+  topografia:    ['SUPER_ADMIN','ADMIN','MANAGER','FIELD'],
+  geologia:      ['SUPER_ADMIN','ADMIN','MANAGER','FIELD'],
+  visitas:       ['SUPER_ADMIN','ADMIN','MANAGER','FIELD'],
+  hse:           ['SUPER_ADMIN','ADMIN','MANAGER','FIELD'],
+  flota:         ['SUPER_ADMIN','ADMIN','MANAGER'],
+  personal:      ['SUPER_ADMIN','ADMIN','MANAGER'],
+  reportes:      ['SUPER_ADMIN','ADMIN','MANAGER','VIEWER'],
+  portal:        ['SUPER_ADMIN','ADMIN','MANAGER','PORTAL'],
+  configuracion: ['SUPER_ADMIN','ADMIN'],
+};
+
+function defaultRoute(role) {
+  const r = (role || '').toUpperCase();
+  if (r === 'PORTAL') return '/portal';
+  return '/dashboard';
+}
 
 const PageRoot = () => {
-  const { path } = useRouter();
-  // Parse hash route: #/segment/subsegment
+  const { path, go } = useRouter();
+  const { auth } = useApp();
+  const userRole = (auth.user?.role || 'VIEWER').toUpperCase();
+
   const clean = path.replace(/^#\/?/, '');
   const segs = clean.split('/').filter(Boolean);
   const root = segs[0] || 'login';
 
   // Login is full screen (no AppLayout)
   if (root === 'login' || root === '') return <PageLogin/>;
+
+  // Route guard — redirect if role not allowed
+  const allowed = ROUTE_ROLES[root];
+  if (allowed && !allowed.includes(userRole)) {
+    React.useEffect(() => { go(defaultRoute(userRole)); }, []);
+    return null;
+  }
 
   // All other routes go inside AppLayout
   return (
@@ -38,7 +71,7 @@ const PageRoot = () => {
           case 'portal':        return <PagePortal/>;
           case 'configuracion': return <PageSettings/>;
           default:
-            return <UI.EmptyState title="Página no encontrada" desc="La sección a la que intentas acceder no existe." action={<UI.Button onClick={() => window.location.hash = '#/dashboard'}>Ir al Dashboard</UI.Button>}/>;
+            return <UI.EmptyState title="Página no encontrada" desc="La sección a la que intentas acceder no existe." action={<UI.Button onClick={() => go(defaultRoute(userRole))}>Volver al inicio</UI.Button>}/>;
         }
       })()}
     </AppLayout>

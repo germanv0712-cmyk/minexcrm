@@ -184,13 +184,25 @@ const ViewToggle = ({ value, onChange }) => {
 
 // ============ Wizard ============
 const NewProjectWizard = ({ open, onClose, onCreated }) => {
+  const { auth } = Layout.useApp();
   const clients = Store.useClients();
-  const nextCode = 'PRJ-2026-0' + (30 + Store.projects.length + 1);
-  const emptyForm = { code: nextCode, name: '', service: 'Perforación diamantina', region: 'Cesar', start: '2026-06-01', end: '2026-12-30', desc: '', clientId: 'c1', contract: '', contractValue: '1850000000', billing: 'hitos', payTerms: '30 días', notes: '', ownerId: 'u1', hseId: 'u2' };
+  const personnel = Store.usePersonnel();
+  const hsePersonnel = personnel.filter((p) => p.role === 'FIELD' || (p.position || '').toLowerCase().includes('hse'));
+
+  const nextCode = () => 'PRJ-2026-0' + (30 + Store.projects.length + 1);
+  const freshForm = () => ({
+    code: nextCode(), name: '', service: 'Perforación diamantina', region: 'Cesar',
+    start: '2026-06-01', end: '2026-12-30', desc: '',
+    clientId: clients[0]?.id || '',
+    contract: '', contractValue: '1850000000', billing: 'hitos', payTerms: '30 días', notes: '',
+    ownerId: auth.user?.id || '',
+    hseId: (hsePersonnel[0] || personnel[0])?.id || '',
+  });
+
   const [step, setStep] = React.useState(1);
-  const [fd, setFd] = React.useState(emptyForm);
+  const [fd, setFd] = React.useState(freshForm);
   const set = (k) => (e) => setFd((f) => ({ ...f, [k]: e.target.value }));
-  React.useEffect(() => { if (open) { setStep(1); setFd({ ...emptyForm, code: 'PRJ-2026-0' + (30 + Store.projects.length + 1) }); } }, [open]);
+  React.useEffect(() => { if (open) { setStep(1); setFd(freshForm()); } }, [open, clients.length, personnel.length]);
 
   const steps = [
     { id: 1, label: 'Datos generales' },
@@ -201,7 +213,7 @@ const NewProjectWizard = ({ open, onClose, onCreated }) => {
 
   const onCreate = () => {
     const client = clients.find((c) => c.id === fd.clientId) || MX.clients.find((c) => c.id === fd.clientId);
-    const owner = MX.people.find((u) => u.id === fd.ownerId);
+    const owner = personnel.find((u) => u.id === fd.ownerId) || MX.people.find((u) => u.id === fd.ownerId);
     Store.addProject({
       id: 'p' + Date.now(),
       code: fd.code,
@@ -291,16 +303,21 @@ const NewProjectWizard = ({ open, onClose, onCreated }) => {
             <div className="text-xs font-semibold text-neutral-700 uppercase tracking-wide mb-2">Responsable y equipo asignado</div>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <UI.Field label="Responsable principal" required>
-                <UI.Select value={fd.ownerId} onChange={set('ownerId')}>{MX.people.map((p) => <option key={p.id} value={p.id}>{p.name} — {p.role}</option>)}</UI.Select>
+                <UI.Select value={fd.ownerId} onChange={set('ownerId')}>
+                  {(personnel.length ? personnel : MX.people).map((p) => <option key={p.id} value={p.id}>{p.name} — {p.role || p.position || ''}</option>)}
+                </UI.Select>
               </UI.Field>
-              <UI.Field label="Supervisor HSE" required>
-                <UI.Select value={fd.hseId} onChange={set('hseId')}>{MX.people.filter((p) => p.role.includes('HSE')).map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}</UI.Select>
+              <UI.Field label="Supervisor HSE">
+                <UI.Select value={fd.hseId} onChange={set('hseId')}>
+                  <option value="">Sin asignar</option>
+                  {(hsePersonnel.length ? hsePersonnel : MX.people.filter((p) => p.role.includes('HSE'))).map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
+                </UI.Select>
               </UI.Field>
             </div>
             <div className="mt-3 grid grid-cols-1 sm:grid-cols-3 gap-2">
-              {MX.people.slice(0, 6).map((p) => (
+              {(personnel.length ? personnel : MX.people).slice(0, 6).map((p) => (
                 <label key={p.id} className="flex items-center gap-2 border border-neutral-200 rounded-lg px-2 py-1.5 cursor-pointer hover:bg-neutral-50">
-                  <UI.Checkbox checked={['u1','u3','u6'].includes(p.id)}/>
+                  <UI.Checkbox checked={p.id === fd.ownerId || p.id === fd.hseId}/>
                   <UI.Avatar name={p.name} color={p.color} size={24}/>
                   <span className="text-xs text-neutral-700 truncate">{p.name}</span>
                 </label>
@@ -309,18 +326,22 @@ const NewProjectWizard = ({ open, onClose, onCreated }) => {
           </div>
           <div>
             <div className="text-xs font-semibold text-neutral-700 uppercase tracking-wide mb-2">Equipos y recursos</div>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-              {MX.equipment.slice(0, 4).map((e) => (
-                <label key={e.id} className="flex items-center gap-2 border border-neutral-200 rounded-lg px-3 py-2 cursor-pointer hover:bg-neutral-50">
-                  <UI.Checkbox checked={['rig1','v1'].includes(e.id)}/>
-                  <Icon.Truck size={16} className="text-neutral-500"/>
-                  <div className="flex-1 min-w-0">
-                    <div className="text-xs font-semibold text-neutral-900">{e.code} · {e.brand}</div>
-                    <div className="text-[10px] text-neutral-500">{e.type} · {e.model}</div>
-                  </div>
-                </label>
-              ))}
-            </div>
+            {MX.equipment.length > 0 ? (
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                {MX.equipment.slice(0, 4).map((e) => (
+                  <label key={e.id} className="flex items-center gap-2 border border-neutral-200 rounded-lg px-3 py-2 cursor-pointer hover:bg-neutral-50">
+                    <UI.Checkbox checked={['rig1','v1'].includes(e.id)}/>
+                    <Icon.Truck size={16} className="text-neutral-500"/>
+                    <div className="flex-1 min-w-0">
+                      <div className="text-xs font-semibold text-neutral-900">{e.code} · {e.brand}</div>
+                      <div className="text-[10px] text-neutral-500">{e.type} · {e.model}</div>
+                    </div>
+                  </label>
+                ))}
+              </div>
+            ) : (
+              <div className="text-xs text-neutral-500 py-3">Los equipos se pueden asignar al proyecto desde la sección Flota.</div>
+            )}
           </div>
         </div>
       ) : (
@@ -337,10 +358,10 @@ const NewProjectWizard = ({ open, onClose, onCreated }) => {
               ['Código', fd.code],
               ['Nombre', fd.name || '(sin nombre)'],
               ['Servicio', fd.service],
-              ['Cliente', (clients.find((c) => c.id === fd.clientId) || MX.clients.find((c) => c.id === fd.clientId))?.name || fd.clientId],
+              ['Cliente', (clients.find((c) => c.id === fd.clientId) || MX.clients.find((c) => c.id === fd.clientId))?.name || fd.clientId || '—'],
               ['Valor contrato', '$' + fd.contractValue + ' COP'],
               ['Inicio / Fin', fd.start + ' → ' + fd.end],
-              ['Responsable', MX.people.find((u) => u.id === fd.ownerId)?.name || fd.ownerId],
+              ['Responsable', (personnel.find((u) => u.id === fd.ownerId) || MX.people.find((u) => u.id === fd.ownerId))?.name || fd.ownerId || '—'],
               ['Región', fd.region],
             ].map(([k, v]) => (
               <div key={k} className="flex justify-between gap-3 border-b border-neutral-100 pb-2">

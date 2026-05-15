@@ -8,6 +8,7 @@ const PageDashboard = () => {
 
   const allProjects = Store.useProjects();
   const allOpps = Store.useOpportunities();
+  const allClients = Store.useClients();
 
   // Filtered data
   const projects = React.useMemo(() => {
@@ -78,7 +79,7 @@ const PageDashboard = () => {
             </UI.Select>
             <UI.Select value={clientF} onChange={(e) => setClientF(e.target.value)} className="!h-9 !w-44">
               <option value="all">Todos los clientes</option>
-              {MX.clients.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+              {allClients.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
             </UI.Select>
             <UI.Button kind="secondary" size="sm" icon={Icon.Download}>{t('export_pdf')}</UI.Button>
             <UI.Button kind="secondary" size="sm" icon={Icon.FileText}>{t('export_excel')}</UI.Button>

@@ -145,10 +145,11 @@ const PagePipeline = () => {
 const NewOpportunityDrawer = ({ open, onClose }) => {
   const { t, lang } = useT();
   const toast = UI.useToast();
+  const { auth } = Layout.useApp();
   const clients = Store.useClients();
-  const empty = { name: '', clientId: clients[0]?.id || 'c1', amount: '500000000', prob: '50', stage: 'prospect', closeDate: '', next: '', service: '' };
+  const empty = { name: '', clientId: clients[0]?.id || '', amount: '500000000', prob: '50', stage: 'prospect', closeDate: '', next: '', service: '' };
   const [form, setForm] = React.useState(empty);
-  React.useEffect(() => { if (open) setForm(empty); }, [open]);
+  React.useEffect(() => { if (open) setForm({ ...empty, clientId: clients[0]?.id || '' }); }, [open, clients.length]);
   const set = (k) => (e) => setForm((f) => ({ ...f, [k]: e.target.value }));
 
   const onSubmit = () => {
@@ -163,7 +164,7 @@ const NewOpportunityDrawer = ({ open, onClose }) => {
       closeDate: form.closeDate || new Date(Date.now() + 90 * 86400000).toISOString().slice(0, 10),
       next: form.next || 'Primer contacto',
       service: form.service,
-      ownerId: 'u1',
+      ownerId: auth.user?.id || '',
       lastMove: 0,
     });
     toast.push({ kind: 'success', title: 'Oportunidad creada', desc: form.name });
@@ -313,10 +314,11 @@ const OpportunityDrawer = ({ opp, onClose }) => {
 const ConvertToProjectModal = ({ open, opp, onClose }) => {
   const { go } = Layout.useRouter();
   const toast = UI.useToast();
+  const { auth } = Layout.useApp();
   const clients = Store.useClients();
-  const [form, setForm] = React.useState({ code: 'PRJ-2026-036', contractValue: '', ownerId: 'u1', start: '', end: '' });
+  const [form, setForm] = React.useState({ code: '', contractValue: '', ownerId: '', start: '', end: '' });
   React.useEffect(() => {
-    if (opp) setForm({ code: 'PRJ-2026-0' + (30 + Store.projects.length + 1), contractValue: opp ? String(opp.amount) : '', ownerId: 'u1', start: '', end: '' });
+    if (opp) setForm({ code: 'PRJ-2026-0' + (30 + Store.projects.length + 1), contractValue: String(opp.amount), ownerId: auth.user?.id || '', start: '', end: '' });
   }, [opp]);
   if (!opp) return null;
   const c = Store.clients.find((x) => x.id === opp.clientId) || MX.clients.find((x) => x.id === opp.clientId) || { name: opp.clientId };
