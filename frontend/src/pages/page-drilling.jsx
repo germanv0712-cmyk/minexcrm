@@ -32,7 +32,7 @@ const PageDrilling = () => {
 
       {/* KPIs */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-        <UI.Card><div className="text-xs text-neutral-600">Pozos activos</div><div className="font-display font-bold text-2xl mt-1">{MX.wells.filter((w) => w.status === 'active').length}</div></UI.Card>
+        <UI.Card><div className="text-xs text-neutral-600">Pozos activos</div><div className="font-display font-bold text-2xl mt-1">{wells.filter((w) => w.status === 'active').length}</div></UI.Card>
         <UI.Card><div className="text-xs text-neutral-600">Metros perforados (mes)</div><div className="font-display font-bold text-2xl mt-1 font-mono">2 487 <span className="text-sm font-normal">m</span></div></UI.Card>
         <UI.Card><div className="text-xs text-neutral-600">Recuperación promedio</div><div className="font-display font-bold text-2xl mt-1 font-mono">92,4 <span className="text-sm font-normal">%</span></div></UI.Card>
         <UI.Card><div className="text-xs text-neutral-600">Costo / metro</div><div className="font-display font-bold text-2xl mt-1 font-mono">$486K</div><div className="text-[11px] text-success-700 mt-1">↓ 4% vs Q1</div></UI.Card>
@@ -60,14 +60,12 @@ const PageDrilling = () => {
         <UI.Table
           columns={[
             { label: t('well_code'), render: (w) => <span className="font-mono text-primary-700 font-semibold">{w.code}</span> },
-            { label: t('project'), render: (w) => { const p = allProjects.find((x) => x.id === w.projectId) || MX.projects.find((x) => x.id === w.projectId) || { name: w.projectId, code: '—' }; return <div><div className="text-sm">{p.name}</div><div className="text-[11px] text-neutral-500 font-mono">{p.code}</div></div>; } },
-            { label: t('coords_utm'), render: (w) => <span className="font-mono text-[12px] text-neutral-700">E {MX.formatNum(w.utm.e)} · N {MX.formatNum(w.utm.n)}</span> },
-            { label: t('depth'), render: (w) => <div className="min-w-[140px]"><div className="flex items-center justify-between text-xs"><span className="font-mono font-semibold">{w.depthCur.toFixed(1)} / {w.depthTarget} m</span><span className="text-neutral-500">{Math.round((w.depthCur / w.depthTarget) * 100)}%</span></div><UI.Progress value={(w.depthCur / w.depthTarget) * 100} size="sm" className="mt-1"/></div> },
-            { label: t('bit'), render: (w) => <span className="text-xs text-neutral-700">{w.bit}</span> },
-            { label: t('operator'), render: (w) => { const u = MX.people.find((x) => x.id === w.opId); return <span className="inline-flex items-center gap-2"><UI.Avatar name={u.name} color={u.color} size={22}/><span className="text-xs">{u.name}</span></span>; } },
-            { label: t('equipment'), render: (w) => { const e = MX.equipment.find((x) => x.id === w.rigId); return <span className="text-xs">{e.code}</span>; } },
+            { label: t('project'), render: (w) => { const p = allProjects.find((x) => x.id === w.projectId) || { name: w.projectId || '—', code: '—' }; return <div><div className="text-sm">{p.name}</div><div className="text-[11px] text-neutral-500 font-mono">{p.code}</div></div>; } },
+            { label: t('coords_utm'), render: (w) => { const e = w.utmE ?? w.utm?.e; const n = w.utmN ?? w.utm?.n; return <span className="font-mono text-[12px] text-neutral-700">{e ? `E ${MX.formatNum(e)} · N ${MX.formatNum(n)}` : '—'}</span>; } },
+            { label: t('depth'), render: (w) => { const cur = w.depthCur ?? w.depthCurrent ?? 0; const tgt = w.depthTarget || 1; return <div className="min-w-[140px]"><div className="flex items-center justify-between text-xs"><span className="font-mono font-semibold">{Number(cur).toFixed(1)} / {tgt} m</span><span className="text-neutral-500">{Math.round((cur / tgt) * 100)}%</span></div><UI.Progress value={(cur / tgt) * 100} size="sm" className="mt-1"/></div>; } },
+            { label: t('bit'), render: (w) => <span className="text-xs text-neutral-700">{w.bit || '—'}</span> },
             { label: t('status'), render: (w) => UI.statusBadge(w.status, t) },
-            { label: t('last_update'), render: (w) => <span className="font-mono text-[11px] text-neutral-600">{MX.formatDate(w.lastUpdate, lang)} · {new Date(w.lastUpdate).toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit' })}</span> },
+            { label: t('last_update'), render: (w) => { const d = w.lastUpdate || w.updatedAt; return d ? <span className="font-mono text-[11px] text-neutral-600">{MX.formatDate(d, lang)}</span> : <span className="text-neutral-400">—</span>; } },
           ]}
           rows={rows}
           onRowClick={(w) => go('/perforaciones/' + w.id)}/>
@@ -81,12 +79,15 @@ const PageDrilling = () => {
 const PageWellDetail = ({ id }) => {
   const { t, lang } = useT();
   const { go } = Layout.useRouter();
-  const w = MX.wells.find((x) => x.id === id);
+  const allWells    = Store.useWells();
+  const allProjects = Store.useProjects();
+  const allPersonnel = Store.usePersonnel();
+  const w = allWells.find((x) => x.id === id) || MX.wells.find((x) => x.id === id);
   if (!w) return <UI.EmptyState title="Pozo no encontrado" action={<UI.Button onClick={() => go('/perforaciones')}>Volver</UI.Button>}/>;
-  const p = MX.projects.find((x) => x.id === w.projectId);
-  const op = MX.people.find((u) => u.id === w.opId);
+  const p   = allProjects.find((x) => x.id === w.projectId) || MX.projects.find((x) => x.id === w.projectId);
+  const op  = allPersonnel.find((u) => u.id === w.opId) || MX.people.find((u) => u.id === w.opId);
   const rig = MX.equipment.find((e) => e.id === w.rigId);
-  const cores = MX.coreBoxes.filter((c) => c.wellId === w.id);
+  const cores = (MX.coreBoxes || []).filter((c) => c.wellId === w.id);
   const [tab, setTab] = React.useState('log');
 
   const tabs = [

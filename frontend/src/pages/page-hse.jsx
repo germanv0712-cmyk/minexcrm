@@ -3,11 +3,13 @@ const PageHSE = ({ sub }) => {
   const { t, lang } = useT();
   const { go, path } = Layout.useRouter();
   const active = sub || 'incidents';
+  const incidents  = Store.useIncidents();
+  const personnel  = Store.usePersonnel();
 
   const tabs = [
-    { id: 'incidents', label: t('nav_incidents'), icon: Icon.ShieldAlert, route: '/hse/incidentes', count: MX.incidents.length },
-    { id: 'permits',   label: t('nav_permits'),   icon: Icon.FileSignature, route: '/hse/permisos', count: MX.permits.length },
-    { id: 'epp',       label: t('nav_epp'),       icon: Icon.Award, route: '/hse/epp', count: MX.people.length },
+    { id: 'incidents', label: t('nav_incidents'), icon: Icon.ShieldAlert,   route: '/hse/incidentes', count: incidents.length },
+    { id: 'permits',   label: t('nav_permits'),   icon: Icon.FileSignature, route: '/hse/permisos',   count: (MX.permits || []).length },
+    { id: 'epp',       label: t('nav_epp'),       icon: Icon.Award,         route: '/hse/epp',        count: personnel.length },
   ];
 
   return (
@@ -115,7 +117,8 @@ const IncidentsTab = () => {
           <UI.Field label="Acciones inmediatas tomadas" required><UI.Textarea value={form.actions} onChange={set('actions')} rows={2} placeholder="Aislamiento del área, atención médica, comunicación…"/></UI.Field>
           <UI.Field label="Responsable de investigación" required>
             <UI.Select value={form.investigatorId} onChange={set('investigatorId')}>
-              {MX.people.map((p) => <option key={p.id} value={p.id}>{p.name} — {p.role}</option>)}
+              <option value="">Sin asignar</option>
+              {(Store.personnel.length ? Store.personnel : MX.people).map((p) => <option key={p.id} value={p.id}>{p.name} — {p.role || p.position || ''}</option>)}
             </UI.Select>
           </UI.Field>
           <UI.Field label="Evidencias fotográficas"><Dropzone label="Sube fotos del lugar del incidente"/></UI.Field>
@@ -166,14 +169,14 @@ const EPPTab = () => {
             </tr>
           </thead>
           <tbody className="divide-y divide-neutral-200">
-            {MX.people.filter((p) => !p.role.includes('comercial')).map((p) => {
-              const pr = p.project ? MX.projects.find((x) => x.id === p.project) : null;
+            {(personnel.length ? personnel : MX.people.filter((p) => !p.role.includes('comercial'))).map((p) => {
+              const pr = p.projectId ? Store.projects.find((x) => x.id === p.projectId) : null;
               return (
                 <tr key={p.id} className="hover:bg-neutral-50">
                   <td className="px-4 py-3"><span className="inline-flex items-center gap-2"><UI.Avatar name={p.name} color={p.color} size={28}/><span className="font-medium">{p.name}</span></span></td>
-                  <td className="px-4 py-3 text-neutral-600">{p.role}</td>
+                  <td className="px-4 py-3 text-neutral-600">{p.role || p.position || '—'}</td>
                   <td className="px-4 py-3 text-neutral-600 text-xs">{pr ? pr.code : '—'}</td>
-                  {certKeys.map((c) => <td key={c.id} className="px-4 py-3">{dot(p.certs[c.id])}</td>)}
+                  {certKeys.map((c) => <td key={c.id} className="px-4 py-3">{dot(p.certs ? p.certs[c.id] : (p.certifications?.find(x => x.type === c.id)?.status?.toLowerCase() || 'na'))}</td>)}
                   <td className="px-4 py-3"><UI.Button kind="ghost" size="sm" icon={Icon.RefreshCw}>Renovar</UI.Button></td>
                 </tr>
               );

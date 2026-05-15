@@ -77,7 +77,7 @@ const PageProjects = () => {
           <UI.Input icon={Icon.Search} placeholder="Buscar por código o nombre…" value={filters.q} onChange={(e) => setFilters({ ...filters, q: e.target.value })} className="!w-64"/>
           <UI.Select value={filters.client} onChange={(e) => setFilters({ ...filters, client: e.target.value })} className="!w-44">
             <option value="all">Todos los clientes</option>
-            {MX.clients.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+            {clients.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
           </UI.Select>
           <UI.Select value={filters.service} onChange={(e) => setFilters({ ...filters, service: e.target.value })} className="!w-52">
             {serviceTypes.map((s) => <option key={s} value={s}>{s === 'all' ? 'Todos los servicios' : s}</option>)}
@@ -381,18 +381,22 @@ const PageProjectDetail = ({ id }) => {
   const { t, lang } = useT();
   const { go } = Layout.useRouter();
   const allProjects = Store.useProjects();
+  const allClients  = Store.useClients();
+  const allWells    = Store.useWells();
+  const allIncidents = Store.useIncidents();
+  const allPersonnel = Store.usePersonnel();
   const p = allProjects.find((x) => x.id === id);
   if (!p) return <UI.EmptyState title="Proyecto no encontrado" desc="Vuelve al listado de proyectos para seleccionar otro." action={<UI.Button onClick={() => go('/proyectos')}>Volver</UI.Button>}/>;
-  const client = Store.clients.find((c) => c.id === p.clientId) || MX.clients.find((c) => c.id === p.clientId) || { name: p.clientId, color: '#94A3B8', logo: '?', nit: '—' };
-  const owner = MX.people.find((u) => u.id === p.ownerId) || { name: 'Equipo', color: '#94A3B8' };
+  const client = allClients.find((c) => c.id === p.clientId) || { name: p.clientId, color: '#94A3B8', logo: '?', nit: '—' };
+  const owner = allPersonnel.find((u) => u.id === p.ownerId) || { name: 'Sin asignar', color: '#94A3B8' };
   const [tab, setTab] = React.useState('summary');
 
-  const wellsP = MX.wells.filter((w) => w.projectId === p.id);
-  const visitsP = MX.visits.filter((v) => v.projectId === p.id);
-  const incP = MX.incidents.filter((i) => i.projectId === p.id);
-  const eqP = MX.equipment.filter((e) => e.projectId === p.id);
-  const peopleP = MX.people.filter((u) => u.project === p.id);
-  const surveysP = MX.surveys.filter((s) => s.projectId === p.id);
+  const wellsP = allWells.filter((w) => w.projectId === p.id);
+  const visitsP = (MX.visits || []).filter((v) => v.projectId === p.id);
+  const incP = allIncidents.filter((i) => i.projectId === p.id);
+  const eqP = (MX.equipment || []).filter((e) => e.projectId === p.id);
+  const peopleP = allPersonnel.filter((u) => u.projectId === p.id);
+  const surveysP = (MX.surveys || []).filter((s) => s.projectId === p.id);
 
   const tabs = [
     { id: 'summary', label: 'Resumen', icon: Icon.LayoutDashboard },
