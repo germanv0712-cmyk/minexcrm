@@ -80,6 +80,14 @@
 <script src="https://cdn.jsdelivr.net/npm/recharts@2.12.7/umd/Recharts.min.js"></script>
 <script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" crossorigin="anonymous"></script>
 
+<!-- Reset: visita ?reset=1 para limpiar sesión y caché local -->
+<script>
+  if (new URLSearchParams(window.location.search).get('reset') === '1') {
+    localStorage.clear();
+    window.location.replace(window.location.pathname + '#/login');
+  }
+</script>
+
 <!-- Auth bridge: handles real JWT auth and exposes window.MxAuth -->
 <script>
 window.MxAuth = (() => {
@@ -156,25 +164,25 @@ window.MxAuth = (() => {
 })();
 </script>
 
-<script type="text/babel" src="src/pages/icons.jsx?v=7"></script>
-<script type="text/babel" src="src/pages/i18n.jsx?v=7"></script>
-<script type="text/babel" src="src/pages/mocks.jsx?v=7"></script>
-<script type="text/babel" src="src/pages/store.jsx?v=7"></script>
-<script type="text/babel" src="src/pages/components.jsx?v=7"></script>
-<script type="text/babel" src="src/pages/layout.jsx?v=7"></script>
-<script type="text/babel" src="src/pages/page-login.jsx?v=7"></script>
-<script type="text/babel" src="src/pages/page-dashboard.jsx?v=7"></script>
-<script type="text/babel" src="src/pages/page-projects.jsx?v=7"></script>
-<script type="text/babel" src="src/pages/page-clients.jsx?v=7"></script>
-<script type="text/babel" src="src/pages/page-pipeline.jsx?v=7"></script>
-<script type="text/babel" src="src/pages/page-drilling.jsx?v=7"></script>
-<script type="text/babel" src="src/pages/page-field.jsx?v=7"></script>
-<script type="text/babel" src="src/pages/page-hse.jsx?v=7"></script>
-<script type="text/babel" src="src/pages/page-fleet.jsx?v=7"></script>
-<script type="text/babel" src="src/pages/page-personnel.jsx?v=7"></script>
-<script type="text/babel" src="src/pages/page-reports.jsx?v=7"></script>
-<script type="text/babel" src="src/pages/page-portal.jsx?v=7"></script>
-<script type="text/babel" src="src/pages/page-settings.jsx?v=7"></script>
-<script type="text/babel" src="src/pages/app.jsx?v=7"></script>
+<script type="text/babel" src="src/pages/icons.jsx?v=8"></script>
+<script type="text/babel" src="src/pages/i18n.jsx?v=8"></script>
+<script type="text/babel" src="src/pages/mocks.jsx?v=8"></script>
+<script type="text/babel" src="src/pages/store.jsx?v=8"></script>
+<script type="text/babel" src="src/pages/components.jsx?v=8"></script>
+<script type="text/babel" src="src/pages/layout.jsx?v=8"></script>
+<script type="text/babel" src="src/pages/page-login.jsx?v=8"></script>
+<script type="text/babel" src="src/pages/page-dashboard.jsx?v=8"></script>
+<script type="text/babel" src="src/pages/page-projects.jsx?v=8"></script>
+<script type="text/babel" src="src/pages/page-clients.jsx?v=8"></script>
+<script type="text/babel" src="src/pages/page-pipeline.jsx?v=8"></script>
+<script type="text/babel" src="src/pages/page-drilling.jsx?v=8"></script>
+<script type="text/babel" src="src/pages/page-field.jsx?v=8"></script>
+<script type="text/babel" src="src/pages/page-hse.jsx?v=8"></script>
+<script type="text/babel" src="src/pages/page-fleet.jsx?v=8"></script>
+<script type="text/babel" src="src/pages/page-personnel.jsx?v=8"></script>
+<script type="text/babel" src="src/pages/page-reports.jsx?v=8"></script>
+<script type="text/babel" src="src/pages/page-portal.jsx?v=8"></script>
+<script type="text/babel" src="src/pages/page-settings.jsx?v=8"></script>
+<script type="text/babel" src="src/pages/app.jsx?v=8"></script>
 </body>
 </html>
